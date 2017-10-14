@@ -1,5 +1,6 @@
 module Trace
     ( toTraceWithError
+    , Trace(..)
     ) where
 
 -- |Useful type synonymsfor the trace datatype
