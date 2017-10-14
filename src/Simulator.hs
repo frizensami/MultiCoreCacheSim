@@ -3,20 +3,11 @@ module Simulator
     ) where
 
 import Trace
+import Processor (createProcessor)
+import Definitions
 import Control.Monad (liftM)
 
-data Protocol = MESI | Dragon deriving (Show, Read)
-type ProtocolInput = String
-type Filename = String
-type CacheSize = Int
-type Associativity = Int
-type BlockSize = Int
-type ProcessorCompleteStatus = Bool
-type ProcessorsTraces = [[String]]
-type StatsReport = String
 
-type Processor = Int
-type BusEvent = Int
 
 -- Defining constants
 num_processors = 4
@@ -43,9 +34,20 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             -- liftM applies this composed & curried function into the list monad
             fileLines = liftM (map lines) fileStrings
 
-            -- Initially all processors are still completing their tasks
-            processorsCompleteStatus = replicate num_processors False
+            -- Map each of these lines to a trace
+            -- This is now of type IO [[Trace]] where each outer list element is one processor
+            -- and the inner lists are the traces for that processor
+            tracesIO = liftM (map $ map toTraceWithError) fileLines
 
+            -- Initialize as many processors as we need in their initial states
+            newProcessor = createProcessor protocolInput cacheSize associativity blockSize
+            processorsList = replicate num_processors newProcessor
+
+            -- Execute 
+            -- Until ALL PROCESSORS ARE COMPLETE and ALL TRACE LISTS ARE EMPTY - we keep executing
+
+        -- Get the entire list of pure traces from the IO [[Trace]] structure
+        tracesList <- tracesIO
         -- Now run one round of the simulation loop and see if a core needs another instruction
         return "Simulation Completed"
 
