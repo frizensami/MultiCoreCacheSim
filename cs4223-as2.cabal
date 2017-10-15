@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Simulator, Trace, Definitions, Processor
+  exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility
   ghc-options:         -Wall -Werror, -Wno-unused-matches -Wunused-local-binds
   build-depends:       base >= 4.7 && < 5
   default-language:    Haskell2010

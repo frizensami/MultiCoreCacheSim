@@ -1,6 +1,6 @@
 module Main where
 
-import Simulator
+import SimulatorCore
 import System.Environment (getArgs)
 
 -- |The 'main' function reads 5 command line arguments and passes them to the runSimulation function

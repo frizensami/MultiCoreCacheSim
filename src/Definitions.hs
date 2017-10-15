@@ -10,4 +10,4 @@ type ProcessorCompleteStatus = Bool
 type ProcessorsTraces = [[String]]
 type StatsReport = String
 type Processor = Int
-type BusEvent = Int
+type Message = Int
