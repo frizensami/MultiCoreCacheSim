@@ -27,7 +27,19 @@ Receives the command line arguments as strings, reads the trace files required, 
 runSimulation :: ProtocolInput -> Filename -> CacheSize -> Associativity -> BlockSize -> IO String
 ```
 
+
+### Concept of a single cycle
+One cycle will occur as such:
+- Phase 1 (Trace Execution). For each processor x = [1...n]
+    - Input:  (Current processor, List of all traces left to execute, Bus Queue). 
+    - Action: Consume a trace if ready. Otherwise, continue working on whatever is pending/waiting.
+    - Output: (Updated processor, List of all traces left to execute (perhaps with one consumed), New Bus Queue).
+- Phase 2 (Bus Transactions). After all processors are done with Phase 1, the first event on the bus is dequeued IF there are no pending events on the bus right now (e.g. read miss and memory is being accessed). Then, all processors respond to this bus event on this cycle if able.
+- Phase 3 (Completion). After Phases 1 and 2, the cycle is complete and Phase 1 begins again.
+
 ### TODO
 Processor.hs is just a stub - processor data types must be properly defined, so must be the cache structures. Also, separation of concerns must be achieved between the protocol being used (MESI/Dragon) and the rest of the structures. 
 
 Also, tests must be implemented for these lower-level data structures (like the caches etc).
+
+
