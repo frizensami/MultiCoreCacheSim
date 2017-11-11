@@ -4,13 +4,13 @@ module Bus
     , enqueueBus
     , dequeueBus
     , isBusEmpty
-    , EventBus
+    , EventBus(..)
     ) where
 
 import qualified Data.Sequence as S
 import Data.Sequence ((|>), ViewR((:>)))
 
-newtype EventBus a = EventBus { getSeq :: (S.Seq a) }
+newtype EventBus a = EventBus { getSeq :: (S.Seq a) } deriving (Show, Eq)
 
 createBus :: EventBus a
 createBus = EventBus S.empty
