@@ -67,6 +67,8 @@ startSimulationPure processorsList tracesList =
     let 
         -- processorTraceList :: [(Processor, [Trace])]
         processorTraceList = zip processorsList tracesList
+        -- Create the bus queue
+        --eventBus = createEventBus num_processors
         -- For each processor, we need to 
         -- 1. Attempt to run one trace
         -- 2. Send their generated messages to all other processes
