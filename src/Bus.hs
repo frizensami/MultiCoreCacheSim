@@ -5,12 +5,14 @@ module Bus
     , dequeueBus
     , isBusEmpty
     , EventBus(..)
+    , CacheEventBus
     ) where
 
 import qualified Data.Sequence as S
 import Data.Sequence ((|>), ViewR((:>)))
 
 newtype EventBus a = EventBus { getSeq :: (S.Seq a) } deriving (Show, Eq)
+type CacheEventBus = EventBus String
 
 createBus :: EventBus a
 createBus = EventBus S.empty

@@ -4,6 +4,7 @@ module SimulatorCore
 
 import Trace
 import qualified Processor (createProcessor, runOneCycle)
+import Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
@@ -68,19 +69,19 @@ startSimulationPure processorsList tracesList =
         -- processorTraceList :: [(Processor, [Trace])]
         processorTraceList = zip processorsList tracesList
         -- Create the bus queue
-        --eventBus = createEventBus num_processors
+        eventBus = createBus
         -- For each processor, we need to 
         -- 1. Attempt to run one trace
         -- 2. Send their generated messages to all other processes
         -- 3. Propagate all messages 
-        report = runSimulationCycles processorTraceList 0 0
+        report = runAllSimulationCycles processorTraceList eventBus 0 0
         
     in "----Simulation Complete----\n" ++ (show report)
 
 -- |Pass in the processors and traces, tbe index of the current processor being worked on, and the number of cycles completed.
 -- |Eventually the statistics report will be returned
-runSimulationCycles :: [(Processor, [Trace])] -> Int -> Int -> StatsReport
-runSimulationCycles processorTraceList processorIndex numCyclesCompleted = 
+runAllSimulationCycles :: [(Processor, [Trace])] -> CacheEventBus -> Int -> Int -> StatsReport
+runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompleted = 
     -- Run this simulation for all 4 processors then increment the cycle counter
     let 
         -- Get the current processor to be operated on, and the rest of the list
@@ -88,7 +89,7 @@ runSimulationCycles processorTraceList processorIndex numCyclesCompleted =
         restOfProcessors = removeNthElement processorTraceList processorIndex
 
         -- Mainly this function runs the sim cycle for a single processor, modifying itself and the rest
-        newProcessorTraceList = runSimulationCycleForProcessor currentProcessor restOfProcessors
+        newProcessorTraceList = runSimulationCycleForProcessor currentProcessor eventBus restOfProcessors
 
         -- Define the arguments for the next recursive call
         newProcessorIndex = (processorIndex + 1) `mod` num_processors
@@ -96,29 +97,33 @@ runSimulationCycles processorTraceList processorIndex numCyclesCompleted =
     in 
         if allProcessorsComplete processorTraceList
             then getStatsReport processorTraceList
-            else runSimulationCycles newProcessorTraceList newProcessorIndex newNumCyclesCompleted
+            else runAllSimulationCycles newProcessorTraceList eventBus newProcessorIndex newNumCyclesCompleted
 
     
 
 
 -- |Runs a single simulation cycle with a single processor at its heart
 -- Next argument is the remaining processors 
-runSimulationCycleForProcessor :: (Processor, [Trace]) -> [(Processor, [Trace])] -> [(Processor, [Trace])]
-runSimulationCycleForProcessor currentProcessor restOfProcessors = 
+runSimulationCycleForProcessor :: (Processor, [Trace]) -> CacheEventBus -> [(Processor, [Trace])] -> [(Processor, [Trace])]
+runSimulationCycleForProcessor currentProcessor eventBus restOfProcessors= 
     let 
-        messages = runOneProcessorCycle currentProcessor
+        messages = runOneProcessorCycle currentProcessor eventBus
     in error "tbi"
 
 
 -- |Attempts to feed one trace to the processor, which it can avoid consuming if it's already working on something/busy
 -- Returns a new processor with updated state, the remaining traces to execute, and any new bus events to propagate
-runOneProcessorCycle :: (Processor, [Trace]) -> (Processor, [Trace], [Message])
-runOneProcessorCycle (processor, allTraces@(oneTrace:restOfTraces)) = 
-    let (newProcessor, hasConsumedTrace, newMessages) = Processor.runOneCycle processor (Just oneTrace)
-    in  (newProcessor, if hasConsumedTrace then restOfTraces else allTraces, newMessages) 
-runOneProcessorCycle (processor, []) = 
-    let (newProcessor, _, newMessages) = Processor.runOneCycle processor Nothing
-    in  (newProcessor, [], newMessages)
+runOneProcessorCycle :: (Processor, [Trace]) -> CacheEventBus -> (Processor, [Trace], CacheEventBus)
+runOneProcessorCycle (processor, allTraces@(oneTrace:restOfTraces)) eventBus = 
+    (newProcessor, traces, newBus) 
+    where
+        (newProcessor, hasConsumedTrace, newBus) = Processor.runOneCycle processor (Just oneTrace) eventBus
+        traces = if hasConsumedTrace then restOfTraces else allTraces
+
+runOneProcessorCycle (processor, []) eventBus = 
+    (newProcessor, [], newBus) 
+    where
+        (newProcessor, _, newBus) = Processor.runOneCycle processor Nothing eventBus
 
 allProcessorsComplete :: [(Processor, [Trace])] -> Bool
 allProcessorsComplete processorTraceList = True
