@@ -23,10 +23,27 @@ main :: IO()
 
 Receives the command line arguments as strings, reads the trace files required, initializes the processors, and runs them until they are done and all traces are exhausted.
 ```haskell
--- Simulator.hs
+-- SimulatorCore.hs
 runSimulation :: ProtocolInput -> Filename -> CacheSize -> Associativity -> BlockSize -> IO String
 ```
 
+Given a list of all processors and all traces to execute, zips them together to tie every processor together with its own list of traces to execute, and starts execution of all simulation cycles from cycle 0 to whenever all processors finish.
+```haskell
+-- SimulatorCore.hs
+startSimulationPure :: [Processor] -> [[Trace]] -> StatsReport
+```
+
+This is a recursive function that takes in the list of processor-trace combinations, the shared event bus for them, the index of the current processor within the cycle that is being executed, and the total number of cycles completed so far. Each cycle, all the processors are run with `runOneProcessorCycle` and then finally `executeEventBus` is called.
+```haskell
+-- SimulatorCore.hs
+runAllSimulationCycles :: [(Processor, [Trace])] -> CacheEventBus -> Int -> Int -> StatsReport
+```
+
+This runs a single cycle for a single processor, updating the processor itself, its remaining traces, and the state of the cache bus.
+```haskell
+-- SimulatorCore.hs
+runOneProcessorCycle :: (Processor, [Trace]) -> CacheEventBus -> (Processor, [Trace], CacheEventBus)
+```
 
 ### Concept of a single cycle
 One cycle will occur as such:
