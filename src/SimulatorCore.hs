@@ -85,31 +85,31 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
     -- Run this simulation for all 4 processors then increment the cycle counter
     let 
         -- Get the current processor to be operated on, and the rest of the list
-        currentProcessor = processorTraceList!!processorIndex
+        currentProcessorTrace = processorTraceList!!processorIndex
         restOfProcessors = removeNthElement processorTraceList processorIndex
 
-        -- Mainly this function runs the sim cycle for a single processor, modifying itself and the rest
-        newProcessorTraceList = runSimulationCycleForProcessor currentProcessor eventBus restOfProcessors
+        -- Run a single processor cycle
+        (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus
 
-        -- Define the arguments for the next recursive call
+        -- Insert the modified processor back into the list of processors
+        newProcessorTraceList = insertElementAtIdx restOfProcessors processorIndex (newProcessor, restOfTraces)
+
+
+        -- SPECIAL CASE: IF WE HAVE FINISHED ALL PROCESSORS FOR THIS CYCLE - RUN THE EVENT BUS
+        (newProcessorTraceList', newBus') = 
+            if processorIndex == (num_processors - 1)
+                then executeEventBus newProcessorTraceList eventBus
+                else (newProcessorTraceList, newBus)
+
+        -- Define the cycle and processor number arguments for the next recursive call
         newProcessorIndex = (processorIndex + 1) `mod` num_processors
         newNumCyclesCompleted = if newProcessorIndex == 0 then numCyclesCompleted + 1 else numCyclesCompleted
     in 
         if allProcessorsComplete processorTraceList
-            then getStatsReport processorTraceList
-            else runAllSimulationCycles newProcessorTraceList eventBus newProcessorIndex newNumCyclesCompleted
+            then getStatsReport processorTraceList -- placeholder for statistics
+            else runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
 
     
-
-
--- |Runs a single simulation cycle with a single processor at its heart
--- Next argument is the remaining processors 
-runSimulationCycleForProcessor :: (Processor, [Trace]) -> CacheEventBus -> [(Processor, [Trace])] -> [(Processor, [Trace])]
-runSimulationCycleForProcessor currentProcessor eventBus restOfProcessors= 
-    let 
-        messages = runOneProcessorCycle currentProcessor eventBus
-    in error "tbi"
-
 
 -- |Attempts to feed one trace to the processor, which it can avoid consuming if it's already working on something/busy
 -- Returns a new processor with updated state, the remaining traces to execute, and any new bus events to propagate
@@ -130,3 +130,6 @@ allProcessorsComplete processorTraceList = True
 
 getStatsReport :: [(Processor, [Trace])] -> StatsReport
 getStatsReport processorTraceList = "TBI"
+
+executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
+executeEventBus processorTraceList eventBus = error "TBI"
