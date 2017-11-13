@@ -8,6 +8,7 @@ import Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
+import Debug.Trace
 
 
 
@@ -106,8 +107,8 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         newNumCyclesCompleted = if newProcessorIndex == 0 then numCyclesCompleted + 1 else numCyclesCompleted
     in 
         if allProcessorsComplete processorTraceList
-            then getStatsReport processorTraceList -- placeholder for statistics
-            else runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
+            then trace "simulation complete: getting stats" $ getStatsReport processorTraceList -- placeholder for statistics
+            else trace ("Runall " ++ (show newProcessorIndex) ++ ":" ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
 
     
 
@@ -125,11 +126,14 @@ runOneProcessorCycle (processor, []) eventBus =
     where
         (newProcessor, _, newBus) = Processor.runOneCycle processor Nothing eventBus
 
+-- TO BE IMPLEMENTED: Check if all processors are DONE
 allProcessorsComplete :: [(Processor, [Trace])] -> Bool
-allProcessorsComplete processorTraceList = True
+allProcessorsComplete processorTraceList = (all null . map snd) processorTraceList
 
+-- TO BE IMPLEMETED
 getStatsReport :: [(Processor, [Trace])] -> StatsReport
 getStatsReport processorTraceList = "TBI"
 
+-- TO BE IMPLEMENTED
 executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
-executeEventBus processorTraceList eventBus = error "TBI"
+executeEventBus processorTraceList eventBus = (processorTraceList, eventBus)-- error "TBI"
