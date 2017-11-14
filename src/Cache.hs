@@ -29,9 +29,7 @@ cacheRead memoryAddress cache = (isBusy, isReadHit, newCache) where
     isBusy = False -- TODO: Evaluate whether cache is busy --
 
     (expectedTag, setIndex, offset) = MemoryAddress.parse (blockSize cache) (numCacheSets cache) memoryAddress
-
     cacheSet = (cacheSets cache)!setIndex
-
     isReadHit = cacheSetFindTag expectedTag cacheSet
 
     newCache = cache -- TODO: Return modified cache --
@@ -43,9 +41,7 @@ cacheWrite memoryAddress cache = (isBusy, isWriteHit, newCache) where
     isBusy = False -- TODO: Evaluate whether cache is busy --
 
     (expectedTag, setIndex, offset) = MemoryAddress.parse (blockSize cache) (numCacheSets cache) memoryAddress
-
     cacheSet = (cacheSets cache)!setIndex
-
     isWriteHit = cacheSetFindTag expectedTag cacheSet
 
     newCache = cache -- TODO: Return modified cache --
