@@ -22,6 +22,7 @@ type IsBusy = Bool
 type IsReadHit = Bool
 type IsWriteHit = Bool
 type NumCacheSets = Int
+type CacheBusyCycles = Int
 type Tag = Int
 type SetIndex = Int
 type Offset = Int
