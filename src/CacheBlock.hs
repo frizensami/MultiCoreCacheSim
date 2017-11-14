@@ -1,4 +1,4 @@
-module CacheBlock (CacheBlock, createCacheBlock, cacheBlockFindTag) where 
+module CacheBlock (CacheBlock, BlockState, createCacheBlock, cacheBlockFindTag) where 
 
 import Data.Array as Array
 import Definitions
@@ -9,6 +9,8 @@ data CacheBlock = CacheBlock {
     blockTag :: Tag, 
     cachedAddresses :: Array Int MemoryAddress
 } deriving (Show)
+
+data BlockState = M | E | S | I | C | SC | D | SD deriving (Show, Eq)
 
 -- |Creates an empty cache block with the specified block size.
 --  Returns the empty cache block.
