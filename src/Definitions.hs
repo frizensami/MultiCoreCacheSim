@@ -3,7 +3,6 @@ module Definitions where
 import Data.Int
 
 data Protocol = MESI | Dragon deriving (Show, Read)
-data BlockState = M | E | S | I | C | SC | D | SD deriving (Show, Eq)
 type ProtocolInput = String
 type Filename = String
 type CacheSize = Int
