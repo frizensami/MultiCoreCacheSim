@@ -6,6 +6,9 @@ import Definitions
 
 main = print $ parse 8 2 36
 
+-- |Parses a memory address into the respective tag, set index, and offset while adhering to the 
+--  specified block size and number of cache sets.
+--  Returns the tag, set index, and offset in a tuple.
 parse :: BlockSize -> NumCacheSets -> MemoryAddress -> (Tag, SetIndex, Offset)
 parse blockSize numCacheSets memoryAddress = (tag, setIndex, offset) where 
     numOffsetBits = (floor . logBase 2.0 . fromIntegral) blockSize
