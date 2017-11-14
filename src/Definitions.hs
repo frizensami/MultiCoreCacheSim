@@ -1,5 +1,7 @@
 module Definitions where
 
+import Data.Int
+
 data Protocol = MESI | Dragon deriving (Show, Read)
 type ProtocolInput = String
 type Filename = String
@@ -11,3 +13,11 @@ type ProcessorsTraces = [[String]]
 type StatsReport = String
 type Processor = Int
 type Message = Int
+type MemoryAddress = Int32
+type IsBusy = Bool
+type IsReadHit = Bool
+type IsWriteHit = Bool
+type NumCacheSets = Int
+type Tag = Int
+type SetIndex = Int
+type Offset = Int
