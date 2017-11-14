@@ -6,13 +6,23 @@ module Bus
     , isBusEmpty
     , EventBus(..)
     , CacheEventBus
+    , BusEvent
+    , MESIEvent
+    , DragonEvent
     ) where
 
 import qualified Data.Sequence as S
 import Data.Sequence ((|>), ViewR((:>)))
 
+-- Basic bus data types
 newtype EventBus a = EventBus { getSeq :: (S.Seq a) } deriving (Show, Eq)
 type CacheEventBus = EventBus String
+
+-- Bus EVENT data types
+data BusEvent  = BusEventMESI MESIEvent | BusEventDragon DragonEvent
+data MESIEvent = MESIBusRd Int | MESIBusRdX Int | MESIBusWB Int
+data DragonEvent = DragonBusRd Int | DragonBusUpd Int | DragonBusPrRdMiss Int | 
+                   DragonBusPrWrMiss Int | DragonBusWB Int
 
 createBus :: EventBus a
 createBus = EventBus S.empty
