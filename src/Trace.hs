@@ -3,10 +3,8 @@ module Trace
     , Trace(..)
     ) where
 
+import Definitions
 
--- |Useful type synonymsfor the trace datatype
-type Address = Int
-type NumCycles = Int
 
 -- |Define the structure of the main source of input into the program: a single trace line. Can either be a load, store or other instructions where we wait for a certain number of cycles.
 data Trace = LoadInstruction Address | StoreInstruction Address | OtherInstruction NumCycles deriving (Show)
