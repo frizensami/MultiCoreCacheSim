@@ -1,28 +1,29 @@
 module Cache (createCache, cacheRead, cacheWrite) where
 
+import CacheParams
 import CacheSet
 import Data.Array as Array
 import Definitions
 import MemoryAddress
 
 data Cache = Cache {
-    cacheSize :: CacheSize, 
-    associativity :: Associativity, 
-    blockSize :: BlockSize, 
-    numCacheSets :: NumCacheSets, 
+    cacheParams :: CacheParams, 
+    protocol :: Protocol, 
     cacheBusyCycles :: CacheBusyCycles, 
-    cacheSets :: Array Int CacheSet
+    cacheStructure :: Array Int CacheSet
 } deriving (Show)
 
-main = print $ cacheRead 0x00000001 $ createCache 1024 2 8
+main = print $ cacheRead 0x00000001 $ createCache 1024 2 8 MESI
 
 -- |Creates an empty cache with the specified cache size, associativity, and block size.
 --  Returns the empty cache on successful execution.
-createCache :: CacheSize -> Associativity -> BlockSize -> Cache
-createCache cacheSize associativity blockSize = Cache cacheSize associativity blockSize numCacheSets cacheBusyCycles cacheSets where 
-    numCacheSets = cacheSize `div` (associativity * blockSize)
+createCache :: CacheSize -> Associativity -> BlockSize -> Protocol -> Cache
+createCache cacheSize associativity blockSize protocol = Cache cacheParams protocol cacheBusyCycles cacheStructure where 
+    cacheParams = createCacheParams cacheSize associativity blockSize
     cacheBusyCycles = 0
-    cacheSets = Array.array (0, numCacheSets - 1) [(i, createCacheSet associativity blockSize) | i <- [0..numCacheSets - 1]]
+    cacheStructure = Array.array (0, cacheSetMaxIndex) [(i, cacheSets) | i <- [0..cacheSetMaxIndex]] where 
+        cacheSetMaxIndex = (numCacheSets cacheParams) - 1
+        cacheSets = createCacheSet associativity blockSize
 
 -- |Attempts to do a cache read of a memory address on the specified cache.
 --  Returns the cache busy flag, read hit flag, and the renewed cache.
@@ -30,11 +31,17 @@ cacheRead :: MemoryAddress -> Cache -> (IsBusy, IsReadHit, Cache)
 cacheRead memoryAddress cache = (isBusy, isReadHit, newCache) where 
     isBusy = cacheBusyCycles cache /= 0
 
-    (expectedTag, setIndex, offset) = MemoryAddress.parse (blockSize cache) (numCacheSets cache) memoryAddress
-    cacheSet = (cacheSets cache)!setIndex
-    isReadHit = cacheSetFindTag expectedTag cacheSet
+    isReadHit = 
+        if isBusy
+            then False
+            else cacheSetFindTag expectedTag cacheSet where 
+                (expectedTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
+                cacheSet = (cacheStructure cache)!setIndex
 
-    newCache = elapseOneCycle cache
+    newCache = 
+        if isBusy
+            then elapseOneCycle cache
+            else cache -- TODO: Provide renewed cache --
 
 -- |Attempts to do a cache write of a memory address to the specified cache.
 --  Returns the cache busy flag, read hit flag, and the renewed cache.
@@ -42,12 +49,20 @@ cacheWrite :: MemoryAddress -> Cache -> (IsBusy, IsWriteHit, Cache)
 cacheWrite memoryAddress cache = (isBusy, isWriteHit, newCache) where
     isBusy = cacheBusyCycles cache /= 0
 
-    (expectedTag, setIndex, offset) = MemoryAddress.parse (blockSize cache) (numCacheSets cache) memoryAddress
-    cacheSet = (cacheSets cache)!setIndex
-    isWriteHit = cacheSetFindTag expectedTag cacheSet
+    isWriteHit = 
+        if isBusy 
+            then False
+            else cacheSetFindTag expectedTag cacheSet where 
+                (expectedTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
+                cacheSet = (cacheStructure cache)!setIndex
 
-    newCache = elapseOneCycle cache
+    newCache = 
+        if isBusy 
+            then elapseOneCycle cache
+            else cache -- TODO: Provide renewed cache --
 
+-- |Reduces the remaining busy cycles of the specified cache by 1 if the cache is busy.
+--  Returns the renewed cache.
 elapseOneCycle :: Cache -> Cache
-elapseOneCycle cache = Cache (cacheSize cache) (associativity cache) (blockSize cache) (numCacheSets cache) newCacheBusyCycles (cacheSets cache) where 
+elapseOneCycle cache = Cache (cacheParams cache) (protocol cache) newCacheBusyCycles (cacheStructure cache) where 
     newCacheBusyCycles = max ((cacheBusyCycles cache) - 1) 0
