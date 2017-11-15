@@ -16,10 +16,6 @@ parse cacheParams memoryAddress = (blockTag, setIndex, offset) where
     numSetIndexBits = (floor . logBase 2.0 . fromIntegral) (numCacheSets cacheParams)
     numTagBits = 32 - numOffsetBits - numSetIndexBits
 
-    offsetBitmask = (blockSize cacheParams) - 1
-    setIndexBitmask = Bits.shiftL ((numCacheSets cacheParams) - 1) numOffsetBits
-    tagBitmask = Bits.complement $ fromIntegral (offsetBitmask + setIndexBitmask) :: Int32
-
     offset = fromIntegral $ fromIntegral ((blockSize cacheParams) - 1) .&. memoryAddress
     setIndex = fromIntegral $ fromIntegral ((numCacheSets cacheParams) - 1) .&. shiftR memoryAddress numOffsetBits
     blockTag = fromIntegral $ (2 ^ numTagBits - 1) .&. shiftR memoryAddress (numOffsetBits + numSetIndexBits)
