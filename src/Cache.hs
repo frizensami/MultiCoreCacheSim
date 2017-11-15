@@ -1,4 +1,4 @@
-module Cache (create, isCached, read, write) where
+module Cache (create, isCached, read, write, allocate, evict) where
 
 import qualified CacheParams
 import qualified CacheSet
@@ -7,7 +7,7 @@ import Definitions
 import qualified MemoryAddress
 import Prelude hiding (read, write)
 
-main = print $ Cache.allocate E 0x00000001 $ Cache.create 1024 2 8
+main = print $ Cache.allocate E 0x00000001 $ Cache.create 64 2 8
 
 -- |Creates an empty cache with the specified cache size, associativity, and block size.
 --  Returns the empty cache on successful execution.
@@ -21,7 +21,7 @@ create cacheSize associativity blockSize = Cache cacheParams cacheStructure wher
 -- |Checks whether the specified memory address is cached.
 --  Returns True if the memory address is cached, False otherwise.
 isCached :: MemoryAddress -> Cache -> Bool
-isCached memoryAddress cache = CacheSet.findTag blockTag cacheSet where 
+isCached memoryAddress cache = CacheSet.hasTag blockTag cacheSet where 
     (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
     cacheSet = (cacheStructure cache)!setIndex
 
@@ -32,7 +32,7 @@ read memoryAddress cache = (isReadHit, newCache) where
     (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
 
     cacheSets = cacheStructure cache
-    isReadHit = CacheSet.findTag blockTag $ cacheSets!setIndex
+    isReadHit = CacheSet.hasTag blockTag $ cacheSets!setIndex
 
     newCache = 
         if isReadHit
@@ -46,7 +46,7 @@ write memoryAddress cache = (isWriteHit, newCache) where
     (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
 
     cacheSets = cacheStructure cache
-    isWriteHit = CacheSet.findTag blockTag $ cacheSets!setIndex
+    isWriteHit = CacheSet.hasTag blockTag $ cacheSets!setIndex
 
     newCache = 
         if isWriteHit 
@@ -57,6 +57,16 @@ allocate :: BlockState -> MemoryAddress -> Cache -> Cache
 allocate blockState memoryAddress cache = newCache where 
     (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
 
-    cacheSets = cacheStructure cache
-    newCacheSet = CacheSet.allocate blockState blockTag memoryAddress (cacheSets!setIndex)
-    newCache = Cache (cacheParams cache) (cacheSets//[(i, newCacheSet) | i <- [setIndex]])
+    oldCacheStructure = cacheStructure cache
+    newCacheSet = CacheSet.allocate blockState blockTag memoryAddress (oldCacheStructure!setIndex)
+    newCache = Cache (cacheParams cache) newCacheStructure where 
+        newCacheStructure = oldCacheStructure//[(i, newCacheSet) | i <- [setIndex]]
+
+evict :: MemoryAddress -> Cache -> Cache
+evict memoryAddress cache = newCache where 
+    (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
+
+    oldCacheStructure = cacheStructure cache
+    newCacheSet = CacheSet.evict (oldCacheStructure!setIndex)
+    newCache = Cache (cacheParams cache) newCacheStructure where 
+        newCacheStructure = oldCacheStructure//[(i, newCacheSet) | i <- [setIndex]]

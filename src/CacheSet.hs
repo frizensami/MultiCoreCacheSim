@@ -1,9 +1,9 @@
-module CacheSet (create, allocate, findTag, setDirty) where
+module CacheSet (create, allocate, evict, hasTag, setDirty) where
 
 import qualified CacheBlock
 import Definitions
 
-main = print $ setDirty 0 $ create 2 16
+main = print $ hasTag 123 $ allocate E 123 0x00000003 $ create 2 16
 
 -- |Creates an empty cache set with the specified associativity and block size.
 --  Returns the empty cache set.
@@ -11,57 +11,54 @@ create :: Associativity -> BlockSize -> CacheSet
 create associativity blockSize = CacheSet cacheBlocks where 
     cacheBlocks = replicate associativity $ CacheBlock.create blockSize
 
--- |Allocates a cache block with the given block tag and memory address using the LRU policy.
+-- |Allocates a cache block with given state/tag on the first available block in the specified cache set.
 --  Returns the renewed cache set.
 allocate :: BlockState -> BlockTag -> MemoryAddress -> CacheSet -> CacheSet
 allocate blockState blockTag memoryAddress cacheSet = CacheSet newCacheBlocks where 
     oldCacheBlocks = cacheBlocks cacheSet
-    newCacheBlocks = recursivelyAllocateAt (length oldCacheBlocks - 1) blockState blockTag memoryAddress (evict $ cacheBlocks cacheSet) 0
+    newCacheBlocks = allocateFirstCacheBlock blockState blockTag memoryAddress oldCacheBlocks
 
-evict :: [CacheBlock] -> [CacheBlock]
-evict (x:xs) = xs ++ ((:[]) $ CacheBlock.evict x)
+allocateFirstCacheBlock :: BlockState -> BlockTag -> MemoryAddress -> [CacheBlock] -> [CacheBlock]
+allocateFirstCacheBlock blockState blockTag memoryAddress [] = []
+allocateFirstCacheBlock blockState blockTag memoryAddress (x:xs) 
+    | not $ CacheBlock.isValid x    = xs ++ newCacheBlock
+    | otherwise                     = (:[]) x ++ recurrence where 
+        newCacheBlock = (:[]) $ CacheBlock.allocate blockState blockTag memoryAddress x
+        recurrence = allocateFirstCacheBlock blockState blockTag memoryAddress xs
+
+-- |Evicts the first cache block within the specified cache set.
+--  Returns the renewed cache set.
+evict :: CacheSet -> CacheSet
+evict cacheSet = CacheSet $ evictFirstCacheBlock $ cacheBlocks cacheSet
+
+evictFirstCacheBlock :: [CacheBlock] -> [CacheBlock]
+evictFirstCacheBlock (x:xs) = xs ++ ((:[]) $ CacheBlock.evict x)
 
 -- |Finds a tag in a valid block within the specified cache set.
 --  Returns a boolean indicating whether the tag was found.
-findTag :: BlockTag -> CacheSet -> Bool
-findTag expectedTag cacheSet = recursivelyFindTag expectedTag (cacheBlocks cacheSet) 0
+hasTag :: BlockTag -> CacheSet -> Bool
+hasTag expectedTag cacheSet = recursivelyHasTag expectedTag (cacheBlocks cacheSet)
+
+-- |Recursively finds a tag in each cache block within the specified cache set.
+--  Returns a boolean indicating whether the tag was found in any valid cache block.
+recursivelyHasTag :: BlockTag -> [CacheBlock] -> Bool
+recursivelyHasTag expectedTag [] = False
+recursivelyHasTag expectedTag (x:xs) = blockTagFound || recurrence where 
+    blockTagFound = (CacheBlock.isValid x) && (CacheBlock.hasTag expectedTag x)
+    recurrence = recursivelyHasTag expectedTag xs
 
 -- |Sets the cache block with the given block tag as dirty.
 --  Returns the renewed cache set.
 setDirty :: BlockTag -> CacheSet -> CacheSet
 setDirty blockTag cacheSet = CacheSet newCacheBlocks where 
-    newCacheBlocks = recursivelySetDirty blockTag (cacheBlocks cacheSet) 0
-
-recursivelyAllocateAt :: Int -> BlockState -> BlockTag -> MemoryAddress -> [CacheBlock] -> Int -> [CacheBlock]
-recursivelyAllocateAt allocateBlockId blockState blockTag memoryAddress cacheBlocks currentBlockId
-    | currentBlockId == (length cacheBlocks)    = []
-    | currentBlockId == allocateBlockId         = (:[]) newCacheBlock ++ recurrence
-    | otherwise                                 = (:[]) oldCacheBlock ++ recurrence where 
-        oldCacheBlock = cacheBlocks!!currentBlockId
-        newCacheBlock = CacheBlock.allocate blockState blockTag memoryAddress oldCacheBlock
-        recurrence = recursivelyAllocateAt allocateBlockId blockState blockTag memoryAddress cacheBlocks (currentBlockId + 1)
-
--- |Recursively finds a tag in each cache block within the specified cache set.
---  Returns a boolean indicating whether the tag was found in any valid cache block.
-recursivelyFindTag :: BlockTag -> [CacheBlock] -> Int -> Bool
-recursivelyFindTag expectedTag cacheBlocks currentBlockId
-    | currentBlockId == (length cacheBlocks)    = False
-    | otherwise                                 = cacheBlockHasTag || recurrence where 
-        currentBlock = cacheBlocks!!currentBlockId
-        cacheBlockHasTag = (CacheBlock.isValid currentBlock) && (CacheBlock.hasTag expectedTag currentBlock)
-
-        recurrence = recursivelyFindTag expectedTag cacheBlocks (currentBlockId + 1)
+    newCacheBlocks = recursivelySetDirty blockTag (cacheBlocks cacheSet)
 
 -- |Recursively traverse the given list of cache blocks and set the block with the specified block tag as dirty.
 --  Returns the new list of cache blocks.
-recursivelySetDirty :: BlockTag -> [CacheBlock] -> Int -> [CacheBlock]
-recursivelySetDirty blockTag cacheBlocks currentBlockId
-    | currentBlockId == (length cacheBlocks)    = []
-    | otherwise                                 = (:[]) newCacheBlock ++ recurrence where 
-        currentBlock = cacheBlocks!!currentBlockId
-        newCacheBlock = 
-            if (CacheBlock.isValid currentBlock) && (CacheBlock.hasTag blockTag currentBlock)
-                then CacheBlock.setDirty currentBlock
-                else currentBlock
-
-        recurrence = recursivelySetDirty blockTag cacheBlocks (currentBlockId + 1)
+recursivelySetDirty :: BlockTag -> [CacheBlock] -> [CacheBlock]
+recursivelySetDirty blockTag [] = []
+recursivelySetDirty blockTag (x:xs) 
+    | (CacheBlock.isValid x) && (CacheBlock.hasTag blockTag x)  = (:[]) newCacheBlock ++ recurrence 
+    | otherwise                                                 = (:[]) x ++ recurrence where 
+        newCacheBlock = CacheBlock.setDirty x
+        recurrence = recursivelySetDirty blockTag xs
