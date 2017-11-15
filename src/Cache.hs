@@ -1,4 +1,4 @@
-module Cache (create, isCached, read, write, allocate, evict) where
+module Cache (create, isCached, read, write, canAllocate, allocate, evict) where
 
 import qualified CacheParams
 import qualified CacheSet
@@ -7,7 +7,7 @@ import Definitions
 import qualified MemoryAddress
 import Prelude hiding (read, write)
 
-main = print $ Cache.allocate E 0x00000001 $ Cache.create 64 2 8
+main = print $ Cache.canAllocate 0x00000001 $ Cache.allocate E 0x00000000 $ Cache.allocate E 0x00000001 $ Cache.create 64 2 8
 
 -- |Creates an empty cache with the specified cache size, associativity, and block size.
 --  Returns the empty cache on successful execution.
@@ -52,6 +52,12 @@ write memoryAddress cache = (isWriteHit, newCache) where
         if isWriteHit 
             then cache -- TODO: LRU --
             else cache
+
+canAllocate :: MemoryAddress -> Cache -> Bool
+canAllocate memoryAddress cache = hasAvailableCacheBlock where 
+    (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
+
+    hasAvailableCacheBlock = CacheSet.canAllocate $ (cacheStructure cache)!setIndex
 
 allocate :: BlockState -> MemoryAddress -> Cache -> Cache
 allocate blockState memoryAddress cache = newCache where 
