@@ -4,7 +4,7 @@ import CacheParams
 import CacheSet
 import Data.Array as Array
 import Definitions
-import MemoryAddress
+import qualified MemoryAddress
 
 data Cache = Cache {
     cacheParams :: CacheParams, 
