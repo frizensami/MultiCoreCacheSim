@@ -1,4 +1,4 @@
-module CacheSet (create, allocate, evict, hasTag, setDirty) where
+module CacheSet (create, canAllocate, allocate, evict, hasTag, setDirty) where
 
 import qualified CacheBlock
 import Definitions
@@ -10,6 +10,15 @@ main = print $ hasTag 123 $ allocate E 123 0x00000003 $ create 2 16
 create :: Associativity -> BlockSize -> CacheSet
 create associativity blockSize = CacheSet cacheBlocks where 
     cacheBlocks = replicate associativity $ CacheBlock.create blockSize
+
+canAllocate :: CacheSet -> Bool
+canAllocate cacheSet = recursivelyCanAllocate $ cacheBlocks cacheSet
+
+recursivelyCanAllocate :: [CacheBlock] -> Bool
+recursivelyCanAllocate [] = False
+recursivelyCanAllocate (x:xs) = isCacheBlockEmpty || recurrence where 
+    isCacheBlockEmpty = not $ CacheBlock.isValid x
+    recurrence = recursivelyCanAllocate xs
 
 -- |Allocates a cache block with given state/tag on the first available block in the specified cache set.
 --  Returns the renewed cache set.

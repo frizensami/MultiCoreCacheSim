@@ -14,7 +14,7 @@ create blockSize = CacheBlock I False 0 cachedAddresses where
 
 allocate :: BlockState -> BlockTag -> MemoryAddress -> CacheBlock -> CacheBlock
 allocate blockState blockTag memoryAddress cacheBlock = newCacheBlock where 
-    newCachedAddresses = (cachedAddresses cacheBlock)//[(i, memoryAddress) | i <- [0]] -- TODO: Properly update cached addresses sequence --
+    newCachedAddresses = (cachedAddresses cacheBlock)//[(i, memoryAddress) | i <- [0..1]] -- TODO: Properly update cached addresses sequence --
     newCacheBlock = CacheBlock blockState False blockTag newCachedAddresses
 
 evict :: CacheBlock -> CacheBlock
