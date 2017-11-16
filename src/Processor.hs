@@ -2,17 +2,31 @@
 module Processor 
     ( createProcessor
     , runOneCycle
+    , ProcessorStatus(..)
+    , Processor(..)
     ) where
 
 import Definitions
 import Trace
 import Bus
+import Statistics
 import qualified Debug.Trace as T
 
 type HasConsumedTrace = Bool
 
-createProcessor :: ProtocolInput ->  CacheSize -> Associativity -> BlockSize -> Processor
-createProcessor protocolInput cacheSize associativity blockSize = 1
+data ProcessorStatus = Idle | Blocked | Running deriving (Show)
+data Processor = Processor { getProcessorID         :: Int
+                           , getProcessorStatus     :: ProcessorStatus
+                           , getCache               :: Cache
+                           , getProcessorStatistics :: ProcessorStatistics
+                           }
+
+instance Show Processor where
+    show (Processor pid status cache stats) = "Processor #" ++ (show pid) ++ ": Status - " ++ (show status) ++ ", Cache - " ++ (show cache) ++ ", Stats: " ++ (show stats)
+
+createProcessor ::  ProtocolInput ->  CacheSize -> Associativity -> BlockSize -> Int -> Processor
+createProcessor protocolInput cacheSize associativity blockSize pid = 
+    Processor pid Idle "I am a cache" (newProcessorStatistics pid)
 
 -- TO BE IMPLEMENTED - THIS IS FOR TESTING FLOW
 runOneCycle :: Processor -> Maybe Trace -> CacheEventBus -> (Processor, HasConsumedTrace, CacheEventBus)
