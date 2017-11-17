@@ -12,7 +12,6 @@ type BlockSize = Int
 type ProcessorCompleteStatus = Bool
 type ProcessorsTraces = [[String]]
 type StatsReport = String
-type Processor = Int
 type Message = Int
 type MemoryAddress = Int32
 type IsBusy = Bool

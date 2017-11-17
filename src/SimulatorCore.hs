@@ -3,7 +3,7 @@ module SimulatorCore
     ) where
 
 import Trace
-import qualified Processor (createProcessor, runOneCycle)
+import Processor
 import Bus
 import Definitions
 import Control.Monad (liftM)
@@ -44,8 +44,10 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             tracesIO       = liftM ((map . map) toTraceWithError) fileLines
 
             -- Initialize as many processors as we need in their initial states
-            newProcessor   = Processor.createProcessor protocolInput cacheSize associativity blockSize
-            processorsList = replicate num_processors newProcessor
+            
+            newProcessorWithoutID   = Processor.createProcessor protocolInput cacheSize associativity blockSize
+
+            processorsList = map newProcessorWithoutID [0..(num_processors-1)] 
 
         -- Get the entire list of pure traces from the IO [[Trace]] structure
         tracesList <- tracesIO
