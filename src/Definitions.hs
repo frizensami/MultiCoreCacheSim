@@ -13,11 +13,6 @@ type ProcessorCompleteStatus = Bool
 type ProcessorsTraces = [[String]]
 type StatsReport = String
 type Message = Int
-type Address = Int
-type NumCycles = Int
-
--- Stub definitions
-type Cache = String
 type MemoryAddress = Int32
 type IsBusy = Bool
 type IsReadHit = Bool
@@ -26,6 +21,8 @@ type NumCacheSets = Int
 type BlockTag = Int
 type SetIndex = Int
 type Offset = Int
+type Address = Int
+type NumCycles = Int
 
 data CacheParams = CacheParams {
     cacheSize :: CacheSize, 
