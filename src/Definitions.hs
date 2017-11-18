@@ -23,34 +23,3 @@ type SetIndex = Int
 type Offset = Int
 type Address = Int
 type NumCycles = Int
-
-data CacheParams = CacheParams {
-    cacheSize :: CacheSize, 
-    associativity :: Associativity, 
-    blockSize :: BlockSize, 
-    numCacheSets :: NumCacheSets
-} deriving (Show)
-
-data Cache = Cache {
-    cacheParams :: CacheParams, 
-    cacheStructure :: Array Int CacheSet
-} deriving (Show)
-
-data CacheSet = CacheSet {
-    cacheBlocks :: [CacheBlock]
-} deriving (Show)
-
-data BlockState = M | E | S | I | C | SC | D | SD deriving (Show, Eq)
-
-data CacheBlock = CacheBlock {
-    blockState :: BlockState, 
-    isBlockDirty :: Bool, 
-    blockTag :: BlockTag, 
-    cachedAddresses :: Array Int MemoryAddress
-} deriving (Show)
-
-data Memory = Memory {
-    busyCycles :: NumCycles, 
-    readingAddress :: Maybe MemoryAddress, 
-    writingAddress :: Maybe MemoryAddress
-} deriving (Show)

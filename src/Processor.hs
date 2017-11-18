@@ -11,6 +11,7 @@ import Trace
 import Bus
 import Statistics
 import qualified Debug.Trace as T
+import Cache (Cache)
 import qualified Cache as Cache
 
 type HasConsumedTrace = Bool
