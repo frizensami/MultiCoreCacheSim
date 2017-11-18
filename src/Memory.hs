@@ -1,7 +1,7 @@
 module Memory (create, read, write, elapse) where
 
 import Definitions
-import Prelude hiding (read, write)
+import Prelude hiding (read)
 
 -- Constants describing number of cycles for read/write operation
 readCycles = 100

@@ -5,7 +5,7 @@ import qualified CacheSet
 import Data.Array as Array
 import Definitions
 import qualified MemoryAddress
-import Prelude hiding (read, write)
+import Prelude hiding (read)
 
 main = print $ Cache.canAllocate 0x00000001 $ Cache.allocate E 0x00000000 $ Cache.allocate E 0x00000001 $ Cache.create 64 2 8
 

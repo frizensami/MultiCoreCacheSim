@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility, Bus, Statistics, Cache, CacheParams, CacheSet, CacheBlock, Memory, Protocol, MESICacheModifier, DragonCacheModifier, MemoryAddress
+  exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility, Bus, Statistics, Cache, CacheParams, CacheSet, CacheBlock, Memory, MemoryAddress
   ghc-options:         -Wall -Wno-unused-matches -Wunused-local-binds
   build-depends:       base >= 4.7 && < 5, containers, array
   default-language:    Haskell2010
