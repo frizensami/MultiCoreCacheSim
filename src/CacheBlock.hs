@@ -3,7 +3,7 @@ module CacheBlock (create, allocate, evict, isValid, hasTag, setDirty, setTag) w
 import Data.Array as Array
 import Definitions
 
-main = print $ allocate E 123 0x00000003 $ create 16
+main = print $ allocate E 123 4 0x00000008 $ create 16
 
 -- |Creates an empty cache block with the specified block size.
 --  Returns the empty cache block.
@@ -12,9 +12,11 @@ create blockSize = CacheBlock I False 0 cachedAddresses where
     numAddresses = blockSize `div` 4
     cachedAddresses = Array.array (0, numAddresses - 1) [(i, 0) | i <- [0..numAddresses - 1]]
 
-allocate :: BlockState -> BlockTag -> MemoryAddress -> CacheBlock -> CacheBlock
-allocate blockState blockTag memoryAddress cacheBlock = newCacheBlock where 
-    newCachedAddresses = (cachedAddresses cacheBlock)//[(i, memoryAddress) | i <- [0..1]] -- TODO: Properly update cached addresses sequence --
+allocate :: BlockState -> BlockTag -> Offset -> MemoryAddress -> CacheBlock -> CacheBlock
+allocate blockState blockTag offset memoryAddress cacheBlock = newCacheBlock where 
+    newCachedAddresses = (cachedAddresses cacheBlock)//[(i, headMemoryAddress + fromIntegral i * 4) | i <- [0..lastIndex]] where 
+        headMemoryAddress = memoryAddress - fromIntegral offset
+        lastIndex = (length $ cachedAddresses cacheBlock) - 1
     newCacheBlock = CacheBlock blockState False blockTag newCachedAddresses
 
 evict :: CacheBlock -> CacheBlock

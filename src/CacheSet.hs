@@ -3,7 +3,7 @@ module CacheSet (create, canAllocate, allocate, evict, hasTag, setDirty) where
 import qualified CacheBlock
 import Definitions
 
-main = print $ hasTag 123 $ allocate E 123 0x00000003 $ create 2 16
+main = print $ hasTag 123 $ allocate E 123 4 0x00000008 $ create 2 16
 
 -- |Creates an empty cache set with the specified associativity and block size.
 --  Returns the empty cache set.
@@ -22,18 +22,18 @@ recursivelyCanAllocate (x:xs) = isCacheBlockEmpty || recurrence where
 
 -- |Allocates a cache block with given state/tag on the first available block in the specified cache set.
 --  Returns the renewed cache set.
-allocate :: BlockState -> BlockTag -> MemoryAddress -> CacheSet -> CacheSet
-allocate blockState blockTag memoryAddress cacheSet = CacheSet newCacheBlocks where 
+allocate :: BlockState -> BlockTag -> Offset -> MemoryAddress -> CacheSet -> CacheSet
+allocate blockState blockTag offset memoryAddress cacheSet = CacheSet newCacheBlocks where 
     oldCacheBlocks = cacheBlocks cacheSet
-    newCacheBlocks = allocateFirstCacheBlock blockState blockTag memoryAddress oldCacheBlocks
+    newCacheBlocks = allocateFirstCacheBlock blockState blockTag offset memoryAddress oldCacheBlocks
 
-allocateFirstCacheBlock :: BlockState -> BlockTag -> MemoryAddress -> [CacheBlock] -> [CacheBlock]
-allocateFirstCacheBlock blockState blockTag memoryAddress [] = []
-allocateFirstCacheBlock blockState blockTag memoryAddress (x:xs) 
+allocateFirstCacheBlock :: BlockState -> BlockTag -> Offset -> MemoryAddress -> [CacheBlock] -> [CacheBlock]
+allocateFirstCacheBlock blockState blockTag offset memoryAddress [] = []
+allocateFirstCacheBlock blockState blockTag offset memoryAddress (x:xs) 
     | not $ CacheBlock.isValid x    = xs ++ newCacheBlock
     | otherwise                     = (:[]) x ++ recurrence where 
-        newCacheBlock = (:[]) $ CacheBlock.allocate blockState blockTag memoryAddress x
-        recurrence = allocateFirstCacheBlock blockState blockTag memoryAddress xs
+        newCacheBlock = (:[]) $ CacheBlock.allocate blockState blockTag offset memoryAddress x
+        recurrence = allocateFirstCacheBlock blockState blockTag offset memoryAddress xs
 
 -- |Evicts the first cache block within the specified cache set.
 --  Returns the renewed cache set.
