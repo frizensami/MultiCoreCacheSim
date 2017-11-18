@@ -1,4 +1,4 @@
-module Memory (create, read, write, elapse, getReadAddress, getWrittenAddress) where
+module Memory (Memory, create, read, write, elapse, getReadAddress, getWrittenAddress) where
 
 import Definitions
 import Prelude hiding (read)
