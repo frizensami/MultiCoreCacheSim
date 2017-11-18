@@ -64,7 +64,7 @@ allocate blockState memoryAddress cache = newCache where
     (blockTag, setIndex, offset) = MemoryAddress.parse (cacheParams cache) memoryAddress
 
     oldCacheStructure = cacheStructure cache
-    newCacheSet = CacheSet.allocate blockState blockTag memoryAddress (oldCacheStructure!setIndex)
+    newCacheSet = CacheSet.allocate blockState blockTag offset memoryAddress (oldCacheStructure!setIndex)
     newCache = Cache (cacheParams cache) newCacheStructure where 
         newCacheStructure = oldCacheStructure//[(i, newCacheSet) | i <- [setIndex]]
 
