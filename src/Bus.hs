@@ -25,12 +25,12 @@ type CacheEventBus = EventBus String
 class BusEvent a where
     getBusEventAddress :: a -> Address
 
-data MESIEventType = MESIBusRd | MESIBusRdX | MESIBusWB deriving (Show)
+data MESIEventType = MESIBusRd | MESIBusRdX  deriving (Show)
 data MESIEvent = MESIEvent MESIEventType Address
 instance BusEvent MESIEvent where
     getBusEventAddress (MESIEvent _ addr) = addr
 
-data DragonEventType = DragonBusRd | DragonBusUpd | DragonBusPrRdMiss | DragonBusPrWrMiss | DragonBusWB deriving (Show)
+data DragonEventType = DragonBusRd | DragonBusUpd deriving (Show)
 data DragonEvent = DragonEvent DragonEventType Address
 instance BusEvent DragonEvent where
     getBusEventAddress (DragonEvent _ addr) = addr

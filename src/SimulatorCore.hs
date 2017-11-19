@@ -9,6 +9,7 @@ import Definitions
 import Control.Monad (liftM)
 import Utility
 import Debug.Trace
+import Statistics
 
 
 
@@ -17,7 +18,7 @@ num_processors = 4
 
 -- |Given appropriate cmd line arguments, runs the entire cache simulation and results the stats results
 -- Reads in all traces and kicks off the pure part of this simulation
-runSimulation :: ProtocolInput -> Filename -> CacheSize -> Associativity -> BlockSize -> IO String
+runSimulation :: ProtocolInput -> Filename -> CacheSize -> Associativity -> BlockSize -> IO StatsReport
 runSimulation protocolInput fileName cacheSize associativity blockSize = 
     do
         let 
@@ -83,7 +84,7 @@ startSimulationPure processorsList tracesList =
 
 -- |Pass in the processors and traces, tbe index of the current processor being worked on, and the number of cycles completed.
 -- |Eventually the statistics report will be returned
-runAllSimulationCycles :: [(Processor, [Trace])] -> CacheEventBus -> Int -> Int -> StatsReport
+runAllSimulationCycles :: [(Processor, [Trace])] -> CacheEventBus -> Int -> Int -> SimulationStatistics
 runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompleted = 
     -- Run this simulation for all 4 processors then increment the cycle counter
     let 
@@ -91,6 +92,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         currentProcessorTrace = processorTraceList!!processorIndex
         restOfProcessors = removeNthElement processorTraceList processorIndex
 
+        -- TODO: RECONSTRUCT EVENT BUS EVERY CYCLE WITH CACHES OF ALL PROCESSORS
         -- Run a single processor cycle
         (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus
 
@@ -109,8 +111,9 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         newNumCyclesCompleted = if newProcessorIndex == 0 then numCyclesCompleted + 1 else numCyclesCompleted
     in 
         if allProcessorsComplete processorTraceList
-            then trace "simulation complete: getting stats" $ getStatsReport processorTraceList -- placeholder for statistics
-            else trace ("Runall " ++ (show newProcessorIndex) ++ ":" ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
+            then trace "simulation complete: getting stats" $ 
+                         getStatsReport processorTraceList numCyclesCompleted
+            else trace ("runAllSimulationCycles pidx=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
 
     
 
@@ -133,8 +136,11 @@ allProcessorsComplete :: [(Processor, [Trace])] -> Bool
 allProcessorsComplete processorTraceList = (all null . map snd) processorTraceList
 
 -- TO BE IMPLEMETED
-getStatsReport :: [(Processor, [Trace])] -> StatsReport
-getStatsReport processorTraceList = "TBI"
+getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics
+getStatsReport processorTraceList totalCycles = 
+    let 
+        processorStatsList = map (getProcessorStatistics . fst) processorTraceList
+    in SimulationStatistics totalCycles processorStatsList 0 0 0
 
 -- TO BE IMPLEMENTED
 executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
