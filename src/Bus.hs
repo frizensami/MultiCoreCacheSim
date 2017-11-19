@@ -1,5 +1,3 @@
-{-# LANGUAGE ExistentialQuantification #-}
-
 -- |This module defines methods for the shared bus between processors
 module Bus where
 
@@ -24,19 +22,42 @@ data CacheEventBus = CacheEventBus { getEventBus :: EventBus BusEvent
 -- 2. Separate when putting into a list - aka a list can only have one of these typs (MESI or Dragon events)
 data BusEvent = MESIBusRd | MESIBusRdX  | DragonBusRd | DragonBusUpd deriving (Show)
 
--- Creating CacheEventBuses
+-- | Creating brand new cache event bus - likely to be only called once then updated with recreate method
 createNewCacheEventBus :: [Cache] -> Memory  -> CacheEventBus
 createNewCacheEventBus caches memory = CacheEventBus createBus caches memory True False
 
--- Method to re-create the cache event bus on every new cycle
+-- | Method to re-create the cache event bus on every new cycle
 recreateCacheEventBus :: CacheEventBus -> [Cache] -> CacheEventBus 
 recreateCacheEventBus (CacheEventBus bus _ memory isfree isbusy) caches = 
     CacheEventBus bus caches memory isfree isbusy
 
--- Public method for others to enqueue onto the cache event bus
-enqueueCacheEventBus :: CacheEventBus -> BusEvent -> CacheEventBus 
-enqueueCacheEventBus (CacheEventBus bus caches memory isfree isbusy) event = 
+-- | Public method for others to enqueue onto the cache event bus
+enqueueEventBus :: CacheEventBus -> BusEvent -> CacheEventBus 
+enqueueEventBus (CacheEventBus bus caches memory isfree isbusy) event = 
     CacheEventBus (enqueueBus bus event) caches memory isfree isbusy
+
+-- | Method for processors to attempt unique access to the bus
+--   Maybe return a new cache event bus to indicate we managed to lock the bus down for us
+acquireEventBus :: CacheEventBus -> Maybe CacheEventBus
+acquireEventBus (CacheEventBus bus caches memory isfree isbusy) = 
+    if isfree && not isbusy 
+        then Just (CacheEventBus bus caches memory False isbusy) -- Is no longer free!
+        else Nothing
+
+-- | Method for a processor to give up control over the bus. ASSUMES WELL BEHAVED CALLS.
+--   No checking whether the processor that calls this method is authorized to do so!
+--   Maybe return a new cache event bus to indicate we managed to release the bus.
+releaseEventBus :: CacheEventBus -> Maybe CacheEventBus
+releaseEventBus (CacheEventBus bus caches memory isfree isbusy) = 
+    if not isfree -- do i need to check for busy?
+        then Just (CacheEventBus bus caches memory True isbusy) -- Is no longer free!
+        else Nothing
+
+-- | MAIN METHOD FOR BUS TO DEQUEUE AN EVENT AND EXECUTE IT
+-- TBI!
+runEventBus :: CacheEventBus -> CacheEventBus 
+runEventBus (CacheEventBus bus caches memory isfree isbusy) = error "TBI!"
+                                                    
 
 -- GENERAL BUS FUNCTIONS
 createBus :: EventBus a
