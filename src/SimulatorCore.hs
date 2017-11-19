@@ -10,6 +10,7 @@ import Control.Monad (liftM)
 import Utility
 import Debug.Trace
 import Statistics
+import qualified Memory 
 
 
 
@@ -73,7 +74,7 @@ startSimulationPure processorsList tracesList =
         -- processorTraceList :: [(Processor, [Trace])]
         processorTraceList = zip processorsList tracesList
         -- Create the bus queue
-        eventBus = createBus
+        eventBus = createNewCacheEventBus (map getCache processorsList) Memory.create
         -- For each processor, we need to 
         -- 1. Attempt to run one trace
         -- 2. Send their generated messages to all other processes
@@ -92,28 +93,32 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         currentProcessorTrace = processorTraceList!!processorIndex
         restOfProcessors = removeNthElement processorTraceList processorIndex
 
-        -- TODO: RECONSTRUCT EVENT BUS EVERY CYCLE WITH CACHES OF ALL PROCESSORS
+        -- RECONSTRUCT EVENT BUS EVERY CYCLE WITH CACHES OF ALL PROCESSORS to keep it updated
+        eventBus' = recreateCacheEventBus eventBus (map (getCache . fst) processorTraceList) 
+
         -- Run a single processor cycle
-        (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus
+        (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus'
 
         -- Insert the modified processor back into the list of processors
         newProcessorTraceList = insertElementAtIdx restOfProcessors processorIndex (newProcessor, restOfTraces)
 
+        -- Consider if we need to re-create the bus here after this processor is complete
+        -- No need if we dont' do anything with the bus till next run of this function
 
         -- SPECIAL CASE: IF WE HAVE FINISHED ALL PROCESSORS FOR THIS CYCLE - RUN THE EVENT BUS
-        (newProcessorTraceList', newBus') = 
-            if processorIndex == (num_processors - 1)
-                then executeEventBus newProcessorTraceList eventBus
-                else (newProcessorTraceList, newBus)
+        -- (newProcessorTraceList', newBus') = 
+        --    if processorIndex == (num_processors - 1)
+        --        then executeEventBus newProcessorTraceList eventBus
+        --        else (newProcessorTraceList, newBus)
 
         -- Define the cycle and processor number arguments for the next recursive call
         newProcessorIndex = (processorIndex + 1) `mod` num_processors
         newNumCyclesCompleted = if newProcessorIndex == 0 then numCyclesCompleted + 1 else numCyclesCompleted
     in 
         if allProcessorsComplete processorTraceList
-            then trace "simulation complete: getting stats" $ 
+            then trace "Simulation complete: getting stats" $ 
                          getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pidx=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList' newBus' newProcessorIndex newNumCyclesCompleted
+            else trace ("runAllSimulationCycles pidx=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
 
     
 
@@ -131,7 +136,8 @@ runOneProcessorCycle (processor, []) eventBus =
     where
         (newProcessor, _, newBus) = Processor.runOneCycle processor Nothing eventBus
 
--- TO BE IMPLEMENTED: Check if all processors are DONE
+-- TO BE IMPLEMENTED: Check if all processors are DONE. Now just checks that all traces are consumed. 
+-- Perhaps this is sufficient?
 allProcessorsComplete :: [(Processor, [Trace])] -> Bool
 allProcessorsComplete processorTraceList = (all null . map snd) processorTraceList
 
@@ -143,5 +149,5 @@ getStatsReport processorTraceList totalCycles =
     in SimulationStatistics totalCycles processorStatsList 0 0 0
 
 -- TO BE IMPLEMENTED
-executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
-executeEventBus processorTraceList eventBus = (processorTraceList, eventBus)-- error "TBI"
+-- executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
+-- executeEventBus processorTraceList eventBus = (processorTraceList, eventBus)-- error "TBI"

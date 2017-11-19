@@ -1,4 +1,4 @@
-module Memory (Memory, create, issueRead, issueWrite, elapse, isBusy) where
+module Memory where
 
 import Definitions
 
