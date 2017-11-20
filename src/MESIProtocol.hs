@@ -1,4 +1,4 @@
-module MESIProtocol (load) where
+module MESIProtocol (MESIState (..), MESIProtocol, load) where
 
 import Bus (CacheBus, BusTr (..))
 import qualified Bus
@@ -18,6 +18,8 @@ data MESIState = MESIWaitCacheRead | MESIWaitCacheWrite
 
 data MESIProtocol = MESIProtocol MESIState
 
+-- |Loads a memory address to the processor while adhering to the MESI coherence protocol.
+--  Returns the renewed MESIProtocol containing the protocol state, cache, memory, and cache bus.
 load :: Maybe MESIProtocol -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIProtocol, Cache, Memory, CacheBus)
 load Nothing memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, newCache, memory, cacheBus) where
     newMESIState = MESIWaitCacheRead
@@ -133,6 +135,8 @@ load (Just (MESIProtocol MESIWaitMemoryRead)) memoryAddress cache memory cacheBu
                 Just M      -> cacheBus -- An M cache block was evicted, Done state not yet reached, don't release the cache bus
                 otherwise   -> Bus.release cacheBus -- No M cache block was evicted, Done state reached, release the cache bus
 
+-- Load on WaitMemoryWrite, this state could only be reached if an M state cache block was evicted during cache allocation.
+-- Could proceed to WaitMemoryWrite/Done state depending on the memory state.
 load (Just (MESIProtocol MESIWaitMemoryWrite)) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, cache, memory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
