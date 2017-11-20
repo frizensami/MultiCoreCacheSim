@@ -1,4 +1,4 @@
-module MESIProtocol (MESIState (..), MESIProtocol, load) where
+module MESIProtocol (MESIState (..), load) where
 
 import Bus (CacheBus, BusTr (..))
 import qualified Bus
@@ -9,24 +9,26 @@ import Data.Maybe
 import Definitions
 import Memory (Memory)
 import qualified Memory
-import Prelude hiding (read)
+import Protocol
 
 data MESIState = MESIWaitCacheRead | MESIWaitCacheWrite
     | MESIIssueBusTr BusTr | MESIWaitBusTr
     | MESIWaitMemoryRead | MESIWaitMemoryWrite
     | MESIDone
 
-data MESIProtocol = MESIProtocol MESIState
+instance ProtocolState MESIState where
+    isDone MESIDone = True
+    isDone _        = False
 
 -- |Loads a memory address to the processor while adhering to the MESI coherence protocol.
---  Returns the renewed MESIProtocol containing the protocol state, cache, memory, and cache bus.
-load :: Maybe MESIProtocol -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIProtocol, Cache, Memory, CacheBus)
-load Nothing memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, newCache, memory, cacheBus) where
+--  Returns the renewed MESIState, cache, memory, and cache bus.
+load :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIState, Cache, Memory, CacheBus)
+load Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
     newMESIState = MESIWaitCacheRead
     newCache = Cache.issueRead memoryAddress cache
 
 -- Load on WaitCacheRead. Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done depending on the cache/bus states.
-load (Just (MESIProtocol MESIWaitCacheRead)) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, cache, newMemory, newCacheBus) where
+load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     maybeAcquiredCacheBus = case cacheHit of
@@ -67,7 +69,7 @@ load (Just (MESIProtocol MESIWaitCacheRead)) memoryAddress cache memory cacheBus
 
 -- Load on IssueBusTr, this state could only be reached if bus was busy during after cache read is done. Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead
 -- depending on the bus state.
-load (Just (MESIProtocol (MESIIssueBusTr busTr))) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, cache, newMemory, newCacheBus) where
+load (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     maybeAcquiredCacheBus = Bus.acquire busTr cacheBus
 
     newMESIState = case maybeAcquiredCacheBus of
@@ -92,7 +94,7 @@ load (Just (MESIProtocol (MESIIssueBusTr busTr))) memoryAddress cache memory cac
 
 -- Load on WaitBusTr, this state could only be reached if the bus transaction issued was not instant (a cache has the address cached on M state, for example).
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on the bus state.
-load (Just (MESIProtocol MESIWaitBusTr)) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, cache, newMemory, cacheBus) where
+load (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, cacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     newMESIState
@@ -104,12 +106,17 @@ load (Just (MESIProtocol MESIWaitBusTr)) memoryAddress cache memory cacheBus = (
         | otherwise = Memory.issueRead memory -- Bus is no longer busy, do a memory read.
 
 -- Load on WaitMemoryRead. Could proceed to WaitMemoryRead/WaitMemoryWrite/Done depending on the memory state and cache allocation result.
-load (Just (MESIProtocol MESIWaitMemoryRead)) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, newCache, newMemory, newCacheBus) where
+load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, newCache)
         | isMemoryBusy  = (Nothing, cache) -- Memory is still busy, no allocation done on this cycle
-        | otherwise     = Cache.busAllocate S memoryAddress cache -- Memory is no longer busy, do allocation on local cache
+        | otherwise     = Cache.busAllocate allocatedBlockState memoryAddress cache -- Memory is no longer busy, do allocation on local cache
+        where
+            allocatedBlockState =
+                if Bus.isShared memoryAddress cacheBus
+                    then S
+                    else E
 
     newMESIState
         | isMemoryBusy  = MESIWaitMemoryRead -- Memory is still busy, wait for it to complete
@@ -137,7 +144,7 @@ load (Just (MESIProtocol MESIWaitMemoryRead)) memoryAddress cache memory cacheBu
 
 -- Load on WaitMemoryWrite, this state could only be reached if an M state cache block was evicted during cache allocation.
 -- Could proceed to WaitMemoryWrite/Done state depending on the memory state.
-load (Just (MESIProtocol MESIWaitMemoryWrite)) memoryAddress cache memory cacheBus = (MESIProtocol newMESIState, cache, memory, newCacheBus) where
+load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIState, cache, memory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newMESIState

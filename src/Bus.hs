@@ -1,5 +1,5 @@
 -- |This module defines methods for the shared bus between processors
-module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, elapse, isBusy) where
+module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, isShared, elapse, isBusy) where
 
 import Definitions
 import Cache (Cache)
@@ -81,6 +81,13 @@ recursivelyUpdateBlockState fromBlockState toBlockState memoryAddress (x:xs)
 release :: CacheBus -> CacheBus
 release (CacheBus oldCaches oldMemory _ oldBusyCycles) = newCacheBus where
     newCacheBus = CacheBus oldCaches oldMemory Nothing oldBusyCycles
+
+-- |Checks whether the specified memory address is shared by at least a cache.
+--  Returns True if it is shared, False otherwise.
+isShared :: MemoryAddress -> CacheBus -> Bool
+isShared memoryAddress (CacheBus caches _ _ _) = isSharedS || isSharedSC where
+    isSharedS = recursivelyCheckCachesForState S memoryAddress caches
+    isSharedSC = recursivelyCheckCachesForState SC memoryAddress caches
 
 -- |Elapses a single cycle from the bus memory and the bus itself.
 --  Returns the renewed cache bus.
