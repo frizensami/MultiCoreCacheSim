@@ -93,4 +93,4 @@ elapse (CacheBus oldCaches oldMemory oldMaybeBusTr oldBusyCycles) = newCacheBus 
 -- |Checks if the bus is busy.
 --  Returns True if either the bus memory or the bus itself is busy, False otherwise.
 isBusy :: CacheBus -> IsBusy
-isBusy (CacheBus _ memory _ busyCycles) = (not $ Memory.isBusy memory) && (busyCycles /= 0)
+isBusy (CacheBus _ memory _ busyCycles) = (Memory.isBusy memory) || (busyCycles /= 0)
