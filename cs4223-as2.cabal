@@ -31,6 +31,7 @@ executable cs4223-as2-exe
 test-suite cs4223-as2-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
+  other-modules:       BusSpec, StatsSpec
   main-is:             Spec.hs
   build-depends:       base
                      , cs4223-as2
