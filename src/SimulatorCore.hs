@@ -1,6 +1,4 @@
-module SimulatorCore
-    ( runSimulation
-    ) where
+module SimulatorCore where
 
 import Trace
 import Processor
@@ -118,7 +116,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         if allProcessorsComplete processorTraceList
             then trace "Simulation complete: getting stats" $ 
                          getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pidx=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
+            else trace ("runAllSimulationCycles pid=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
 
     
 

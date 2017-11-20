@@ -65,4 +65,4 @@ processOneComputeCycle (Processor pid status cache stats cycles) = (newProcessor
     isDone = getCyclesToCompute newProcessor == 0
 
 addOneStatsComputeCycle :: ProcessorStatistics -> ProcessorStatistics
-addOneStatsComputeCycle (ProcessorStatistics pid compute loadstore idle misscount) = ProcessorStatistics pid (compute + 1) loadstore idle misscount
+addOneStatsComputeCycle (ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics (compute + 1) loadstore idle misscount pid

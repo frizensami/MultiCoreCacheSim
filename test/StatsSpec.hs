@@ -11,14 +11,14 @@ spec :: Spec
 spec = do
     describe "Simple processor statistics show output" $ do
         it "returns the expected string for 'let x = ProcessorStatistics 2 1000 50 940 10'" $ do
-            let x = ProcessorStatistics 2 1000 50 940 10  in  
+            let x = ProcessorStatistics 1000 50 940 10 2 in  
                 (show x) `shouldBe` 
                     "PID: 2 | Compute Cycles: 1000 | Load Store Instructions: 50 | Idle Cycles: 940 | Cache Miss Rate: 0.2."
 
     describe "Simple simulation statistics show output" $ do
         it "returns the expected string for 'let x = ProcessorStatistics 2 1000 50 940 10', 'let y = SimulationStatistics 5000 [x] 7777 30 10`, show y" $ do
             let 
-                x = ProcessorStatistics 2 1000 50 940 10 
+                x = ProcessorStatistics 1000 50 940 10 2 
                 y = SimulationStatistics 5000 [x] 7777 30 10
                 in  
                 (show y) `shouldBe` 

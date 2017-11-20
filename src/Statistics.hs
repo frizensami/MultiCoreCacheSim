@@ -6,15 +6,15 @@ type LoadStoreCount = Int
 type IdleCycles = Int
 type CacheMissCount = Int
 
-data ProcessorStatistics = ProcessorStatistics { getProcessorID    :: ProcessorID
-                                               , getComputeCycles  :: ComputeCycles
+data ProcessorStatistics = ProcessorStatistics { getComputeCycles  :: ComputeCycles
                                                , getLoadStoreCount :: LoadStoreCount
                                                , getNumIdleCycles  :: IdleCycles
                                                , getCacheMissCount :: CacheMissCount 
-                                               }
+                                               , getProcessorID    :: ProcessorID
+                                               } deriving (Eq)
 
 instance Show ProcessorStatistics where
-    show (ProcessorStatistics pid compute loadstore idle misscount) = 
+    show (ProcessorStatistics compute loadstore idle misscount pid) = 
         "PID: " ++ (show pid) ++ " | " ++
         "Compute Cycles: " ++ (show compute) ++ " | " ++
         "Load Store Instructions: " ++ (show loadstore) ++ " | " ++ 
@@ -22,7 +22,7 @@ instance Show ProcessorStatistics where
         "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) :: Double)) ++ "."
 
 newProcessorStatistics :: Int -> ProcessorStatistics
-newProcessorStatistics processorID = ProcessorStatistics processorID 0 0 0 0
+newProcessorStatistics processorID = ProcessorStatistics 0 0 0 0 processorID
 
 type TotalCycles = Int
 type BusTrafficBytes = Int
@@ -34,7 +34,7 @@ data SimulationStatistics = SimulationStatistics { getTotalCycles         :: Tot
                                                  , getBusTrafficBytes     :: BusTrafficBytes
                                                  , getPrivateDataAccesses :: PrivateDataAccesses
                                                  , getPublicDataAccesses  :: PublicDataAccesses
-                                                 }
+                                                 } deriving (Eq)
                                                  
 
 instance Show SimulationStatistics where
