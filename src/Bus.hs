@@ -1,17 +1,12 @@
 -- |This module defines methods for the shared bus between processors
-module Bus (create, updateCaches, acquire, release, elapse, isBusy) where
+module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, elapse, isBusy) where
 
-import qualified Data.Sequence as S
-import Data.Sequence ((|>), ViewR((:>)))
 import Definitions
 import Cache (Cache)
 import qualified Cache
 import CacheBlock (BlockState (..))
 import Memory (Memory)
 import qualified Memory
-
-writeBackCycles :: Int
-writeBackCycles = 100
 
 -- Problem-specific bus type
 data CacheBus = CacheBus [Cache] Memory (Maybe BusTr) NumCycles
