@@ -1,5 +1,7 @@
 # cs4223-as2
 
+[![Build Status](https://travis-ci.org/frizensami/cs4223-as2.svg?branch=master)](https://travis-ci.org/frizensami/cs4223-as2)
+
 ## Introduction
 This is a trace-based simulator written in Haskell for running multi-core cache simulations. One trace for each core will be provided, and statistics will be printed out once the simulation is complete. This simulation supports the MESI and Dragon cache coherence protocols. 
 
