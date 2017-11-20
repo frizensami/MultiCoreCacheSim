@@ -13,6 +13,7 @@ import qualified Memory
 
 
 -- Defining constants
+num_processors :: Int
 num_processors = 4
 
 -- |Given appropriate cmd line arguments, runs the entire cache simulation and results the stats results

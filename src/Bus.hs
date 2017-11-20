@@ -3,7 +3,6 @@ module Bus where
 
 import qualified Data.Sequence as S
 import Data.Sequence ((|>), ViewR((:>)))
-import Definitions
 import Cache
 import Memory
 
