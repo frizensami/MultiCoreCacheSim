@@ -32,7 +32,7 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             fileNames      = map (\n -> fileName ++ "_" ++ show n ++ ".data") [0..(num_processors-1)] 
 
             -- Create a set of strings, each will lazily read from the file as needed (IO [String]])
-            fileStrings    = mapM (readFile) fileNames 
+            fileStrings    = mapM readFile fileNames 
 
             -- Read the list of strings from the file read process into a list of list of lines
             -- Each element of the list is a list of the lines from a single file
@@ -80,7 +80,7 @@ startSimulationPure processorsList tracesList =
         -- 3. Propagate all messages 
         report = runAllSimulationCycles processorTraceList eventBus 0 0
         
-    in "----Simulation Complete----\n" ++ (show report)
+    in "----Simulation Complete----\n" ++ show report
 
 -- |Pass in the processors and traces, tbe index of the current processor being worked on, and the number of cycles completed.
 -- |Eventually the statistics report will be returned
@@ -117,7 +117,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         if allProcessorsComplete processorTraceList
             then trace "Simulation complete: getting stats" $ 
                          getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pid=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
+            else trace ("runAllSimulationCycles pid=" ++ show newProcessorIndex ++ ": Cycles Completed: " ++ show newNumCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
 
     
 
@@ -138,7 +138,7 @@ runOneProcessorCycle (processor, []) eventBus =
 -- TO BE IMPLEMENTED: Check if all processors are DONE. Now just checks that all traces are consumed. 
 -- Perhaps this is sufficient?
 allProcessorsComplete :: [(Processor, [Trace])] -> Bool
-allProcessorsComplete processorTraceList = (all null . map snd) processorTraceList
+allProcessorsComplete = all null . map snd
 
 -- TO BE IMPLEMETED
 getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics

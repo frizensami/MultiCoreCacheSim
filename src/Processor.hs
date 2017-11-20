@@ -25,7 +25,7 @@ data Processor = Processor { getProcessorID         :: Int
                            }
 
 instance Show Processor where
-    show (Processor pid status cache stats cycles) = "Processor #" ++ (show pid) ++ ": Status - " ++ (show status) ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ (show stats) ++ ", ComputeCyclesLeft: " ++ (show cycles)
+    show (Processor pid status _ stats cycles) = "Processor #" ++ show pid ++ ": Status - " ++ show status ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ show stats ++ ", ComputeCyclesLeft: " ++ show cycles
 
 createProcessor ::  ProtocolInput ->  CacheSize -> Associativity -> BlockSize -> Int -> Processor
 createProcessor protocolInput cacheSize associativity blockSize pid = 
@@ -36,7 +36,7 @@ createProcessor protocolInput cacheSize associativity blockSize pid =
 runOneCycle :: Processor -> Maybe Trace -> CacheEventBus -> (Processor, HasConsumedTrace, CacheEventBus)
 runOneCycle processor (Just trace) eventBus = 
         -- Run print
-        T.trace ((show processor) ++ ": " ++ (show trace)) $
+        T.trace (show processor ++ ": " ++ show trace) $
         -- First check if we are currently processing anything
         if getCyclesToCompute processor == 0
             -- If nothing is processing - we continue handling the new trace

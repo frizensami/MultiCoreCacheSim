@@ -13,7 +13,7 @@ data Trace = LoadInstruction Address | StoreInstruction Address | OtherInstructi
 toTraceWithError :: String -> Trace
 toTraceWithError traceString = 
     let traceComponents = words traceString
-        firstWord = traceComponents!!0
+        firstWord = head traceComponents
         secondInt = read $ traceComponents!!1 :: Int
     in
     case firstWord of

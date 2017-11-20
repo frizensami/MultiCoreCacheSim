@@ -22,7 +22,7 @@ instance Show ProcessorStatistics where
         "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) :: Double)) ++ "."
 
 newProcessorStatistics :: Int -> ProcessorStatistics
-newProcessorStatistics processorID = ProcessorStatistics 0 0 0 0 processorID
+newProcessorStatistics = ProcessorStatistics 0 0 0 0
 
 type TotalCycles = Int
 type BusTrafficBytes = Int
