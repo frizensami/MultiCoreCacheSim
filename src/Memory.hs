@@ -1,4 +1,4 @@
-module Memory where
+module Memory (Memory, create, issueRead, issueWrite, elapse, isBusy) where
 
 import Definitions
 
@@ -8,8 +8,6 @@ readCycles = 100
 
 writeCycles :: Int
 writeCycles = 100
-
-type IsMemoryDone = Bool
 
 data Memory = Memory NumCycles
 
@@ -29,5 +27,5 @@ elapse (Memory oldBusyCycles) = newMemory where
     newMemory = Memory newBusyCycles where
         newBusyCycles = max (oldBusyCycles - 1) 0
 
-isBusy :: Memory -> IsMemoryDone
+isBusy :: Memory -> IsBusy
 isBusy (Memory busyCycles) = busyCycles /= 0

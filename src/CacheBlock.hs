@@ -1,4 +1,4 @@
-module CacheBlock (BlockState (M, E, S, I, C, SC, D, SD), CacheBlock, create, allocate, evict, isValid, hasTag, getBlockState, setBlockState) where
+module CacheBlock (BlockState (..), CacheBlock, create, allocate, evict, isValid, hasTag, getBlockState, setBlockState) where
 
 import Data.Array as Array
 import Definitions
