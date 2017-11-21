@@ -3,7 +3,7 @@ module CacheBlock (BlockState (..), CacheBlock, create, allocate, evict, isValid
 import Data.Array as Array
 import Definitions
 
-data BlockState = M | E | S | I | C | SC | D | SD deriving (Show, Eq)
+data BlockState = M | E | S | I | SC | SM deriving (Show, Eq)
 
 data CacheBlock = CacheBlock BlockState (Maybe BlockTag) (Array Int MemoryAddress)
 

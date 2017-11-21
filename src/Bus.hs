@@ -14,7 +14,7 @@ data CacheBus = CacheBus [Cache] Memory (Maybe BusTr) NumCycles
 -- Simplified bus event type until I figure out how to make two separate types that 
 -- 1. Can be treated as the same type in some circumstances but 
 -- 2. Separate when putting into a list - aka a list can only have one of these typs (MESI or Dragon events)
-data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress deriving (Show)
+data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | MESIBusUpg MemoryAddress | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress deriving (Show)
 
 -- | Creating brand new cache event bus - likely to be only called once then updated with recreate method
 create :: [Cache] -> Memory -> CacheBus
@@ -52,9 +52,16 @@ acquire (MESIBusRdX memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Ju
                 else oldMemory
         newMaybeBusTr = Just $ MESIBusRdX memoryAddress
         newBusyCycles = 0
--- Case #3: Dragon BusRd
+-- Case #3: MESI BusUpg
+acquire (MESIBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Just newCacheBus where
+    newCacheBus = CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles where
+        -- Change all S states to I state
+        newCaches = recursivelyUpdateBlockState S I memoryAddress oldCaches
+        newMaybeBusTr = Just $ MESIBusUpg memoryAddress
+        newBusyCycles = 0
+-- Case #4: Dragon BusRd
 acquire (DragonBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Nothing
--- Case #4: Dragon BusUpd
+-- Case #5: Dragon BusUpd
 acquire (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Nothing
 -- Final case: bus is not free
 acquire _ (CacheBus _ _ (Just _) _) = Nothing
