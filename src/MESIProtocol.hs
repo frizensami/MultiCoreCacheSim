@@ -28,7 +28,7 @@ load Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memo
     newCache = Cache.issueRead memoryAddress cache
 
 -- Load on WaitCacheRead.
--- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done depending on the cache/bus states.
+-- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done/WaitCacheRead depending on the cache/bus states.
 load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
@@ -55,10 +55,7 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIStat
                 False   -> Memory.issueRead memory -- Bus transaction is instant, do a memory read
         Nothing     -> memory -- Cache read not finished yet, no memory operation needed
 
-    newCacheBus = case cacheHit of
-        Just True   -> cacheBus -- Cache hit, no bus transaction issued, return the same bus
-        Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
-        Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
+    newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Returns the acquired cache bus if the bus is acquired
 
 -- Load on IssueBusTr, this state could only be reached if bus was busy during after cache read is done.
 -- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead depending on the bus state.
@@ -107,19 +104,19 @@ load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESISta
         True    -> MESIWaitMemoryRead -- Memory is still busy, wait for it to complete
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, next state depends on whether allocation results in eviction of M cache block
             Just M      -> MESIWaitMemoryWrite -- An M cache block was evicted, needs to be written back to memory, wait for this memory write
-            otherwise   -> MESIDone -- No M cache block was evicted, go to done state
+            _           -> MESIDone -- No M cache block was evicted, go to done state
 
     newMemory = case isMemoryBusy of
         True    -> memory -- Memory is still busy, do not issue any memory operation
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, a memory write might need to be done due to M block eviction
             Just M      -> Memory.issueWrite memory -- An M cache block was evicted, needs to be written back to memory
-            otherwise   -> memory -- No M cache block was evicted, no more memory operations issued
+            _           -> memory -- No M cache block was evicted, no more memory operations issued
 
     newCacheBus = case isMemoryBusy of
         True    -> cacheBus -- Memory is still busy, no changes to cache bus
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, cache bus might need to be released depending on whether Done state is reached.
             Just M      -> cacheBus -- An M cache block was evicted, Done state not yet reached, don't release the cache bus
-            otherwise   -> Bus.release cacheBus -- No M cache block was evicted, Done state reached, release the cache bus
+            _           -> Bus.release cacheBus -- No M cache block was evicted, Done state reached, release the cache bus
 
 -- Load on WaitMemoryWrite, this state could only be reached if an M state cache block was evicted during cache allocation.
 -- Could proceed to WaitMemoryWrite/Done state depending on the memory state.
@@ -152,7 +149,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just M      -> Nothing -- Cache hit on M state, no need to acquire the bus
             Just E      -> error "Cache block still on E state after write is finished"
             Just S      -> Bus.acquire (MESIBusUpg memoryAddress) cacheBus -- Cache hit on S state, issue a MESIBusUpg transaction to invalidate other copies
-            otherwise   -> error "Cache hit on I state"
+            _           -> error "Cache hit on I state"
         Just False  -> Bus.acquire (MESIBusRdX memoryAddress) cacheBus -- Cache miss, issue a MESIBusRdX transaction to invalidate other copies and read from memory
         Nothing     -> Nothing -- Cache write has not completed, no need to acquire the bus on this cycle
 
@@ -163,7 +160,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, next state depends on whether bus is acquired
                 Nothing                 -> MESIIssueBusTr $ MESIBusUpg memoryAddress -- Bus not acquired, keep trying to acquire on IssueBusTr state
                 Just acquiredCacheBus   -> MESIDone -- Bus acquired, invalidation is instant, go to Done state
-            otherwise   -> error "Cache hit on I state"
+            _           -> error "Cache hit on I state"
         Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether bus is acquired
             Nothing                 -> MESIIssueBusTr $ MESIBusRdX memoryAddress -- Bus not acquired, keep trying to acquire on IssueBusTr state
             Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
@@ -187,7 +184,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, new bus depends on whether the bus is acquired successfully
                 Nothing                 -> cacheBus -- Bus has not been acquired, return the same bus
                 Just acquiredCacheBus   -> Bus.release acquiredCacheBus -- Bus has been acquired, will not be busy (only invalidate), release acquired bus
-            otherwise   -> error "Cache hit on I state"
+            _           -> error "Cache hit on I state"
         Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
 
@@ -203,7 +200,7 @@ store (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newME
             MESIBusRdX _    -> case Bus.isBusy acquiredCacheBus of -- MESIBusRdX, next state depends on whether the transaction is instant
                 True    -> MESIWaitBusTr -- Bus is busy (non-instant transaction), wait for it to finish
                 False   -> MESIWaitMemoryRead -- Bus transaction is instant, issue a memory read and go to memory read state
-            otherwise       -> error "Unknown bus transaction on MESIProtocol.store"
+            _           -> error "Unknown bus transaction on MESIProtocol.store"
 
     newMemory = case maybeAcquiredCacheBus of
         Nothing                 -> memory -- Bus not acquired, no memory operation issued on this cycle
@@ -212,14 +209,14 @@ store (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newME
             MESIBusRdX _    -> case Bus.isBusy acquiredCacheBus of -- MESIBusRdX, next state depends on whether the transaction is instant
                 True    -> memory -- Bus is busy (non-instant transaction), no memory read issued on this cycle
                 False   -> Memory.issueRead memory -- Bus transaction is instant, issue a memory read and go to memory read state
-            otherwise       -> error "Unknown bus transaction on MESIProtocol.store"
+            _               -> error "Unknown bus transaction on MESIProtocol.store"
 
     newCacheBus = case maybeAcquiredCacheBus of
         Nothing                 -> cacheBus -- Bus not acquired, no changes to bus on this cycle
         Just acquiredCacheBus   -> case busTr of -- Bus acquired, new cache bus depends on the bus transaction
             MESIBusUpg _    -> Bus.release acquiredCacheBus -- MESIBusUpg transaction is instant and store is finished, immediately release the bus afterwards
             MESIBusRdX _    -> acquiredCacheBus -- MESIBusRdX transaction will always result in an acquired cache bus
-            otherwise       -> error "Unknown bus transaction on MESIProtocol.store"
+            _               -> error "Unknown bus transaction on MESIProtocol.store"
 
 -- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on whether the bus is still busy.
@@ -247,19 +244,19 @@ store (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESISt
         True    -> MESIWaitMemoryRead -- Memory is still busy, wait for it in WaitMemoryRead state
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, next state depends on whether an M state block was evicted during allocation
             Just M      -> MESIWaitMemoryWrite -- An M state block was evicted during allocation, issue a memory write and go to WaitMemoryWrite state
-            otherwise   -> MESIWaitCacheRewrite -- No M state block was evicted during allocation, issue a cache write and go to WaitCacheRewrite state
+            _           -> MESIWaitCacheRewrite -- No M state block was evicted during allocation, issue a cache write and go to WaitCacheRewrite state
 
     newCache = case isMemoryBusy of
         True    -> cache -- Memory is still busy, no cache operation issued this cycle
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, cache write might be issued depending on whether M state block was evicted
             Just M      -> cacheAfterAllocate -- An M state block was evicted during allocation, no cache write issued yet
-            otherwise   -> Cache.issueWrite memoryAddress cacheAfterAllocate -- No M state block was evicted during allocation, issue a cache write
+            _           -> Cache.issueWrite memoryAddress cacheAfterAllocate -- No M state block was evicted during allocation, issue a cache write
 
     newMemory = case isMemoryBusy of
         True    -> memory -- Memory is still busy, no memory operation issued this cycle
         False   -> case maybeEvictedBlockState of -- Memory is no longer busy, memory write might be issued depending on whether M state block was evicted
             Just M      -> Memory.issueWrite memory -- An M state block was evicted during allocation, issue a memory write
-            otherwise   -> memory -- No M state block was evicted during allocation, no memory operation required
+            _           -> memory -- No M state block was evicted during allocation, no memory operation required
 
 -- Store on WaitMemoryWrite, this state could only be reached if an M state block was evicted during allocation.
 -- Could proceed to WaitMemoryWrite/WaitCacheRewrite depending on whether the memory is still busy.

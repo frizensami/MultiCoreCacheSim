@@ -6,7 +6,6 @@ import CacheSet (CacheSet)
 import qualified CacheSet
 import CacheBlock (BlockState (..))
 import Data.Array as Array
-import Data.Maybe
 import Definitions
 import qualified MemoryAddress
 
@@ -40,7 +39,7 @@ issueRead :: MemoryAddress -> Cache -> Cache
 issueRead memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
     (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-    newCache = case isCacheHit of
+    newCache = case cacheHit of
         True    -> Cache oldCacheParams newCacheSets readCycles maybeIsCacheHit
         False   -> Cache oldCacheParams oldCacheSets readCycles maybeIsCacheHit
         where
@@ -50,8 +49,8 @@ issueRead memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
                     (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
 
             oldCacheSet = oldCacheSets!setIndex
-            isCacheHit = CacheSet.hasTag blockTag oldCacheSet
-            maybeIsCacheHit = Just isCacheHit
+            cacheHit = CacheSet.hasTag blockTag oldCacheSet
+            maybeIsCacheHit = Just cacheHit
 
 -- |Issues a cache write of a memory address to the specified cache.
 --  Returns the renewed cache.
@@ -59,7 +58,7 @@ issueWrite :: MemoryAddress -> Cache -> Cache
 issueWrite memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
     (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-    newCache = case isCacheHit of
+    newCache = case cacheHit of
         True    -> Cache oldCacheParams newCacheSets writeCycles maybeIsCacheHit
         False   -> Cache oldCacheParams oldCacheSets writeCycles maybeIsCacheHit
         where
@@ -72,11 +71,12 @@ issueWrite memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache wher
                             S   -> M
                             SC  -> M
                             SM  -> M
+                            I   -> error "Cache hit on I state"
                         (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
 
             oldCacheSet = oldCacheSets!setIndex
-            isCacheHit = CacheSet.hasTag blockTag oldCacheSet
-            maybeIsCacheHit = Just isCacheHit
+            cacheHit = CacheSet.hasTag blockTag oldCacheSet
+            maybeIsCacheHit = Just cacheHit
 
 busGetBlockState :: MemoryAddress -> Cache -> (Maybe BlockState)
 busGetBlockState memoryAddress (Cache oldCacheParams oldCacheSets _ _) = maybeBlockState where
