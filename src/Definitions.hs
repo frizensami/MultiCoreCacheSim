@@ -1,7 +1,6 @@
 module Definitions where
 
 import Data.Int
-import Data.Array as Array
 
 data Protocol = MESI | Dragon deriving (Show, Read)
 type ProtocolInput = String

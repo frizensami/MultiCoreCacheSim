@@ -1,10 +1,9 @@
-module SimulatorCore
-    ( runSimulation
-    ) where
+module SimulatorCore where
 
 import Trace
 import Processor
-import Bus
+import Bus (CacheBus)
+import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
@@ -15,6 +14,7 @@ import qualified Memory
 
 
 -- Defining constants
+num_processors :: Int
 num_processors = 4
 
 -- |Given appropriate cmd line arguments, runs the entire cache simulation and results the stats results
@@ -33,7 +33,7 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             fileNames      = map (\n -> fileName ++ "_" ++ show n ++ ".data") [0..(num_processors-1)] 
 
             -- Create a set of strings, each will lazily read from the file as needed (IO [String]])
-            fileStrings    = mapM (readFile) fileNames 
+            fileStrings    = mapM readFile fileNames 
 
             -- Read the list of strings from the file read process into a list of list of lines
             -- Each element of the list is a list of the lines from a single file
@@ -74,18 +74,18 @@ startSimulationPure processorsList tracesList =
         -- processorTraceList :: [(Processor, [Trace])]
         processorTraceList = zip processorsList tracesList
         -- Create the bus queue
-        eventBus = createNewCacheEventBus (map getCache processorsList) Memory.create
+        eventBus = Bus.create (map getCache processorsList) Memory.create
         -- For each processor, we need to 
         -- 1. Attempt to run one trace
         -- 2. Send their generated messages to all other processes
         -- 3. Propagate all messages 
         report = runAllSimulationCycles processorTraceList eventBus 0 0
         
-    in "----Simulation Complete----\n" ++ (show report)
+    in "----Simulation Complete----\n" ++ show report
 
 -- |Pass in the processors and traces, tbe index of the current processor being worked on, and the number of cycles completed.
 -- |Eventually the statistics report will be returned
-runAllSimulationCycles :: [(Processor, [Trace])] -> CacheEventBus -> Int -> Int -> SimulationStatistics
+runAllSimulationCycles :: [(Processor, [Trace])] -> CacheBus -> Int -> Int -> SimulationStatistics
 runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompleted = 
     -- Run this simulation for all 4 processors then increment the cycle counter
     let 
@@ -94,7 +94,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         restOfProcessors = removeNthElement processorTraceList processorIndex
 
         -- RECONSTRUCT EVENT BUS EVERY CYCLE WITH CACHES OF ALL PROCESSORS to keep it updated
-        eventBus' = recreateCacheEventBus eventBus (map (getCache . fst) processorTraceList) 
+        eventBus' = Bus.updateCaches eventBus (map (getCache . fst) processorTraceList) 
 
         -- Run a single processor cycle
         (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus'
@@ -118,13 +118,13 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         if allProcessorsComplete processorTraceList
             then trace "Simulation complete: getting stats" $ 
                          getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pidx=" ++ (show newProcessorIndex) ++ ": Cycles Completed: " ++ (show newNumCyclesCompleted)) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
+            else trace ("runAllSimulationCycles pid=" ++ show newProcessorIndex ++ ": Cycles Completed: " ++ show newNumCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
 
     
 
 -- |Attempts to feed one trace to the processor, which it can avoid consuming if it's already working on something/busy
 -- Returns a new processor with updated state, the remaining traces to execute, and any new bus events to propagate
-runOneProcessorCycle :: (Processor, [Trace]) -> CacheEventBus -> (Processor, [Trace], CacheEventBus)
+runOneProcessorCycle :: (Processor, [Trace]) -> CacheBus -> (Processor, [Trace], CacheBus)
 runOneProcessorCycle (processor, allTraces@(oneTrace:restOfTraces)) eventBus = 
     (newProcessor, traces, newBus) 
     where
@@ -139,7 +139,7 @@ runOneProcessorCycle (processor, []) eventBus =
 -- TO BE IMPLEMENTED: Check if all processors are DONE. Now just checks that all traces are consumed. 
 -- Perhaps this is sufficient?
 allProcessorsComplete :: [(Processor, [Trace])] -> Bool
-allProcessorsComplete processorTraceList = (all null . map snd) processorTraceList
+allProcessorsComplete = all null . map snd
 
 -- TO BE IMPLEMETED
 getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics
@@ -149,5 +149,5 @@ getStatsReport processorTraceList totalCycles =
     in SimulationStatistics totalCycles processorStatsList 0 0 0
 
 -- TO BE IMPLEMENTED
--- executeEventBus :: [(Processor, [Trace])] -> CacheEventBus -> ([(Processor, [Trace])], CacheEventBus)
+-- executeEventBus :: [(Processor, [Trace])] -> CacheBus -> ([(Processor, [Trace])], CacheBus)
 -- executeEventBus processorTraceList eventBus = (processorTraceList, eventBus)-- error "TBI"
