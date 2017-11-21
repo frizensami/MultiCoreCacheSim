@@ -2,7 +2,6 @@
 module Processor 
     ( createProcessor
     , runOneCycle
-    , ProcessorStatus(..)
     , Processor(..)
     ) where
 
@@ -13,24 +12,29 @@ import Statistics
 import qualified Debug.Trace as T
 import Cache (Cache)
 import qualified Cache as Cache
+import Protocols
 
 type HasConsumedTrace = Bool
 
-data ProcessorStatus = Idle | Blocked | Running deriving (Show)
 data Processor = Processor { getProcessorID         :: Int
-                           , getProcessorStatus     :: ProcessorStatus
+                           , getProtocol            :: Protocol
                            , getCache               :: Cache
                            , getProcessorStatistics :: ProcessorStatistics
                            , getCyclesToCompute     :: Int
+                           , protocolState          :: Maybe ProtocolState
                            }
 
 instance Show Processor where
-    show (Processor pid status _ stats cycles) = "Processor #" ++ show pid ++ ": Status - " ++ show status ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ show stats ++ ", ComputeCyclesLeft: " ++ show cycles
+    show (Processor pid protocol _ stats cycles protocolstate) = "Processor #" ++ show pid ++ ": Status - " ++ show protocol ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ show stats ++ ", ComputeCyclesLeft: " ++ show cycles ++ ", Protocol State: " ++ show protocolstate
 
 createProcessor ::  ProtocolInput ->  CacheSize -> Associativity -> BlockSize -> Int -> Processor
 createProcessor protocolInput cacheSize associativity blockSize pid = 
-    Processor pid Idle newCache (newProcessorStatistics pid) 0 where
+    Processor pid protocol newCache (newProcessorStatistics pid) 0 Nothing where
         newCache = Cache.create cacheSize associativity blockSize
+        protocol = case protocolInput of
+            "MESI"   -> MESI
+            "Dragon" -> Dragon
+            _        -> error "PANIC! Unrecognized protocol!"
 
 -- TO BE IMPLEMENTED - THIS IS FOR TESTING FLOW
 runOneCycle :: Processor -> Maybe Trace -> CacheBus -> (Processor, HasConsumedTrace, CacheBus)
@@ -52,16 +56,19 @@ runOneCycle processor Nothing eventBus = (processor, True, eventBus)
 
 -- | Sets up the current trace into the processor and then executes the cycle if it's an OtherInstruction
 handleTrace :: Processor -> Trace -> CacheBus -> (Processor, HasConsumedTrace, CacheBus)
-handleTrace (Processor pid status cache stats cycles) trace@(OtherInstruction computeCycles) eventBus = 
+handleTrace (Processor pid protocol cache stats cycles pstate) trace@(OtherInstruction computeCycles) eventBus = 
     runOneCycle newProcessor (Just trace) eventBus where
-        newProcessor = Processor pid status cache stats computeCycles -- Set the compute cycles
+        newProcessor = Processor pid protocol cache stats computeCycles pstate-- Set the compute cycles
+
+--handleTrace processor trace@(LoadInstruction address) eventBus = (newProcessor, hasConsumedTrace, newBus) where
+  --  (newPState, newCache, newMemory, newBus) 
 -- Can't do anything about other instructions yet - do nothing except consume3
 handleTrace processor _ eventBus = (processor, True, eventBus)
 
 -- | Runs one compute cycle from the number of cycles left to do computation
 processOneComputeCycle :: Processor -> (Processor, Bool)
-processOneComputeCycle (Processor pid status cache stats cycles) = (newProcessor, isDone) where
-    newProcessor = Processor pid status cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0)
+processOneComputeCycle (Processor pid protocol cache stats cycles pstate) = (newProcessor, isDone) where
+    newProcessor = Processor pid protocol cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0) pstate
     isDone = getCyclesToCompute newProcessor == 0
 
 addOneStatsComputeCycle :: ProcessorStatistics -> ProcessorStatistics
