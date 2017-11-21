@@ -4,8 +4,9 @@ import CacheParams (CacheParams)
 import qualified CacheParams
 import CacheSet (CacheSet)
 import qualified CacheSet
-import CacheBlock (BlockState)
+import CacheBlock (BlockState (..))
 import Data.Array as Array
+import Data.Maybe
 import Definitions
 import qualified MemoryAddress
 
@@ -37,34 +38,45 @@ create cacheSize associativity blockSize = Cache cacheParams cacheSets busyCycle
 --  Returns the renewed cache.
 issueRead :: MemoryAddress -> Cache -> Cache
 issueRead memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
-    newCache = Cache oldCacheParams newCacheSets readCycles newMaybeIsCacheHit where
-        newCacheSets =
-            if newIsCacheHit
-                then oldCacheSets -- TODO: LRU --
-                else oldCacheSets
+    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-        newIsCacheHit = CacheSet.hasTag blockTag cacheSet where
-            (blockTag, setIndex, _) = MemoryAddress.parse oldCacheParams memoryAddress
-            cacheSet = oldCacheSets!setIndex
+    newCache = case isCacheHit of
+        True    -> Cache oldCacheParams newCacheSets readCycles maybeIsCacheHit
+        False   -> Cache oldCacheParams oldCacheSets readCycles maybeIsCacheHit
+        where
+            -- Update the cache sets to ensure LRU policy by evicting and reallocating the cache block
+            newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
+                newCacheSet = CacheSet.allocate evictedBlockState blockTag offset memoryAddress evictedCacheSet where
+                    (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
 
-        newMaybeIsCacheHit = Just newIsCacheHit
+            oldCacheSet = oldCacheSets!setIndex
+            isCacheHit = CacheSet.hasTag blockTag oldCacheSet
+            maybeIsCacheHit = Just isCacheHit
 
 -- |Issues a cache write of a memory address to the specified cache.
 --  Returns the renewed cache.
 issueWrite :: MemoryAddress -> Cache -> Cache
 issueWrite memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
-    newCache = Cache oldCacheParams newCacheSets writeCycles newMaybeIsCacheHit where
-        newCacheSets =
-            if newIsCacheHit
-                then oldCacheSets -- TODO: LRU --
-                else oldCacheSets
+    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-        newIsCacheHit = CacheSet.hasTag blockTag cacheSet where
-            (blockTag, setIndex, _) = MemoryAddress.parse oldCacheParams memoryAddress
+    newCache = case isCacheHit of
+        True    -> Cache oldCacheParams newCacheSets writeCycles maybeIsCacheHit
+        False   -> Cache oldCacheParams oldCacheSets writeCycles maybeIsCacheHit
+        where
+            -- Update the cache sets to ensure LRU policy by evicting and reallocating the cache block with a new modified state
+            newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
+                newCacheSet = CacheSet.allocate modifiedState blockTag offset memoryAddress evictedCacheSet where
+                        modifiedState = case evictedBlockState of
+                            M   -> M
+                            E   -> M
+                            S   -> M
+                            SC  -> M
+                            SM  -> M
+                        (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
 
-            cacheSet = oldCacheSets!setIndex
-
-        newMaybeIsCacheHit = Just newIsCacheHit
+            oldCacheSet = oldCacheSets!setIndex
+            isCacheHit = CacheSet.hasTag blockTag oldCacheSet
+            maybeIsCacheHit = Just isCacheHit
 
 busGetBlockState :: MemoryAddress -> Cache -> (Maybe BlockState)
 busGetBlockState memoryAddress (Cache oldCacheParams oldCacheSets _ _) = maybeBlockState where
