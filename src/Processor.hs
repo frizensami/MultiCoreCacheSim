@@ -33,7 +33,7 @@ createProcessor protocolInput cacheSize associativity blockSize pid =
         newCache = Cache.create cacheSize associativity blockSize
 
 -- TO BE IMPLEMENTED - THIS IS FOR TESTING FLOW
-runOneCycle :: Processor -> Maybe Trace -> CacheEventBus -> (Processor, HasConsumedTrace, CacheEventBus)
+runOneCycle :: Processor -> Maybe Trace -> CacheBus -> (Processor, HasConsumedTrace, CacheBus)
 runOneCycle processor (Just trace) eventBus = 
         -- Run print
         T.trace (show processor ++ ": " ++ show trace) $
@@ -51,7 +51,7 @@ runOneCycle processor Nothing eventBus = (processor, True, eventBus)
 
 
 -- | Sets up the current trace into the processor and then executes the cycle if it's an OtherInstruction
-handleTrace :: Processor -> Trace -> CacheEventBus -> (Processor, HasConsumedTrace, CacheEventBus)
+handleTrace :: Processor -> Trace -> CacheBus -> (Processor, HasConsumedTrace, CacheBus)
 handleTrace (Processor pid status cache stats cycles) trace@(OtherInstruction computeCycles) eventBus = 
     runOneCycle newProcessor (Just trace) eventBus where
         newProcessor = Processor pid status cache stats computeCycles -- Set the compute cycles
