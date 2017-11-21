@@ -1,4 +1,4 @@
-module MESIProtocol (MESIState (..), load) where
+module MESIProtocol (MESIState (..), load, store) where
 
 import Bus (CacheBus, BusTr (..))
 import qualified Bus
