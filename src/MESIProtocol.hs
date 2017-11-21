@@ -27,7 +27,8 @@ load Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memo
     newMESIState = MESIWaitCacheRead
     newCache = Cache.issueRead memoryAddress cache
 
--- Load on WaitCacheRead. Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done depending on the cache/bus states.
+-- Load on WaitCacheRead.
+-- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done depending on the cache/bus states.
 load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
@@ -59,8 +60,8 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIStat
         Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
 
--- Load on IssueBusTr, this state could only be reached if bus was busy during after cache read is done. Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead
--- depending on the bus state.
+-- Load on IssueBusTr, this state could only be reached if bus was busy during after cache read is done.
+-- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead depending on the bus state.
 load (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     maybeAcquiredCacheBus = Bus.acquire busTr cacheBus
 
@@ -91,7 +92,8 @@ load (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, c
         True    -> memory -- Bus is still busy, no changes to memory while waiting for bus.
         False   -> Memory.issueRead memory -- Bus is no longer busy, do a memory read.
 
--- Load on WaitMemoryRead. Could proceed to WaitMemoryRead/WaitMemoryWrite/Done depending on the memory state and cache allocation result.
+-- Load on WaitMemoryRead.
+-- Could proceed to WaitMemoryRead/WaitMemoryWrite/Done depending on the memory state and cache allocation result.
 load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
@@ -132,10 +134,15 @@ load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESISt
         True    -> cacheBus -- Memory write of evicted block is still running, no changes to cache bus on this cycle
         False   -> Bus.release cacheBus -- Memory write of evicted block is complete, Done state reached, release the cache bus
 
+-- |Stores a memory address from the processor while adhering to the MESI coherence protocol.
+--  Returns the renewed MESIState, cache, memory, and cache bus.
+store :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIState, Cache, Memory, CacheBus)
 store Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
     newMESIState = MESIWaitCacheWrite
     newCache = Cache.issueWrite memoryAddress cache
 
+-- Store on WaitCacheWrite.
+-- Could proceed to Done/IssueBusTr/WaitBusTr/WaitMemoryRead/WaitCacheWrite depending on the bus states and whether it is a cache hit.
 store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
@@ -184,6 +191,8 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
         Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
 
+-- Store on IssueBusTr, this state could only be reached if bus was busy after cache write was done and a bus transaction is required.
+-- Could proceed to IssueBusTr/Done/WaitBusTr/WaitMemoryRead depending on the bus states.
 store (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
     maybeAcquiredCacheBus = Bus.acquire busTr cacheBus
 
@@ -212,62 +221,70 @@ store (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newME
             MESIBusRdX _    -> acquiredCacheBus -- MESIBusRdX transaction will always result in an acquired cache bus
             otherwise       -> error "Unknown bus transaction on MESIProtocol.store"
 
+-- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.
+-- Could proceed to WaitBusTr/WaitMemoryRead depending on whether the bus is still busy.
 store (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, cacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     newMESIState = case isBusBusy of
-        True    -> MESIWaitBusTr
-        False   -> MESIWaitMemoryRead
+        True    -> MESIWaitBusTr -- Bus is busy, wait for the bus completion in WaitBusTr state
+        False   -> MESIWaitMemoryRead -- Bus is no longer busy, issue memory read and go to WaitMemoryRead state
 
     newMemory = case isBusBusy of
-        True    -> memory
-        False   -> Memory.issueRead memory
+        True    -> memory -- Bus is busy, no memory read issued this cycle
+        False   -> Memory.issueRead memory -- Bus is no longer busy, issue memory read
 
+-- Store on WaitMemoryRead.
+-- Could proceed to WaitMemoryRead/WaitMemoryWrite/WaitCacheRewrite depending on whether an M state block was evicted during allocation.
 store (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, cacheAfterAllocate) = case isMemoryBusy of
-        True    -> (Nothing, cache)
-        False   -> Cache.busAllocate E memoryAddress cache
+        True    -> (Nothing, cache) -- Memory is still busy, no allocation is done on this cycle
+        False   -> Cache.busAllocate E memoryAddress cache -- Memory is no longer busy, do allocation on local cache in E state
 
     newMESIState = case isMemoryBusy of
-        True    -> MESIWaitMemoryRead
-        False   -> case maybeEvictedBlockState of
-            Just M      -> MESIWaitMemoryWrite
-            otherwise   -> MESIWaitCacheWrite
+        True    -> MESIWaitMemoryRead -- Memory is still busy, wait for it in WaitMemoryRead state
+        False   -> case maybeEvictedBlockState of -- Memory is no longer busy, next state depends on whether an M state block was evicted during allocation
+            Just M      -> MESIWaitMemoryWrite -- An M state block was evicted during allocation, issue a memory write and go to WaitMemoryWrite state
+            otherwise   -> MESIWaitCacheRewrite -- No M state block was evicted during allocation, issue a cache write and go to WaitCacheRewrite state
 
     newCache = case isMemoryBusy of
-        True    -> cache
-        False   -> case maybeEvictedBlockState of
-            Just M      -> cacheAfterAllocate
-            otherwise   -> Cache.issueWrite memoryAddress cacheAfterAllocate
+        True    -> cache -- Memory is still busy, no cache operation issued this cycle
+        False   -> case maybeEvictedBlockState of -- Memory is no longer busy, cache write might be issued depending on whether M state block was evicted
+            Just M      -> cacheAfterAllocate -- An M state block was evicted during allocation, no cache write issued yet
+            otherwise   -> Cache.issueWrite memoryAddress cacheAfterAllocate -- No M state block was evicted during allocation, issue a cache write
 
     newMemory = case isMemoryBusy of
-        True    -> memory
-        False   -> case maybeEvictedBlockState of
-            Just M      -> Memory.issueWrite memory
-            otherwise   -> memory
+        True    -> memory -- Memory is still busy, no memory operation issued this cycle
+        False   -> case maybeEvictedBlockState of -- Memory is no longer busy, memory write might be issued depending on whether M state block was evicted
+            Just M      -> Memory.issueWrite memory -- An M state block was evicted during allocation, issue a memory write
+            otherwise   -> memory -- No M state block was evicted during allocation, no memory operation required
 
+-- Store on WaitMemoryWrite, this state could only be reached if an M state block was evicted during allocation.
+-- Could proceed to WaitMemoryWrite/WaitCacheRewrite depending on whether the memory is still busy.
 store (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newMESIState = case isMemoryBusy of
-        True    -> MESIWaitMemoryWrite
-        False   -> MESIWaitCacheRewrite
+        True    -> MESIWaitMemoryWrite -- Memory is still busy, wait for it in WaitMemoryWrite state
+        False   -> MESIWaitCacheRewrite -- Memory is no longer busy, immediately issue a cache write and go to WaitCacheRewrite state
 
     newCache = case isMemoryBusy of
-        True    -> cache
-        False   -> Cache.issueWrite memoryAddress cache
+        True    -> cache -- Memory is still busy, no cache write issued on this cycle
+        False   -> Cache.issueWrite memoryAddress cache -- Memory is no longer busy, issue a cache write
 
+-- Store on WaitCacheRewrite, this state could only be reached on a write miss, requiring a fetch from the memory.
+-- Could proceed to Done/WaitCacheRewrite depending on whether the cache is still busy.
 store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESIState, cache, memory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     newMESIState = case cacheHit of
-        Just True   -> MESIDone
+        Just True   -> MESIDone -- Cache rewrite was a hit, store is done, go to Done state
         Just False  -> error "Cache miss on rewrite"
-        Nothing     -> MESIWaitCacheRewrite
+        Nothing     -> MESIWaitCacheRewrite -- Cache rewrite has not finished, wait in WaitCacheRewrite state
 
     newCacheBus = case cacheHit of
-        Just True   -> Bus.release cacheBus
+        Just True   -> Bus.release cacheBus -- Cache rewrite was a hit, store is done, release the cache bus
         Just False  -> error "Cache miss on rewrite"
-        Nothing     -> cacheBus
+        Nothing     -> cacheBus -- Cache rewrite has not finished, do not release cache bus this cycle
