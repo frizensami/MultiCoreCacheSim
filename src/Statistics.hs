@@ -31,18 +31,26 @@ type PublicDataAccesses = Int
 
 data SimulationStatistics = SimulationStatistics { getTotalCycles         :: TotalCycles
                                                  , getProcessorStats      :: [ProcessorStatistics]
-                                                 , getBusTrafficBytes     :: BusTrafficBytes
-                                                 , getPrivateDataAccesses :: PrivateDataAccesses
-                                                 , getPublicDataAccesses  :: PublicDataAccesses
+                                                 , getBusStatistics       :: BusStatistics
                                                  } deriving (Eq)
                                                  
 
 instance Show SimulationStatistics where
-    show (SimulationStatistics cycles processor_xs bustraffic private public) = 
+    show (SimulationStatistics cycles processor_xs busstats) = 
         "\n-----SIMULATION STATISTICS REPORT-----\n" ++
         "Total Cycles: " ++ (show cycles) ++ "\n" ++
         (concatMap (("\n--------------------------------------------\n" ++) . show) processor_xs) ++
         "\n--------------------------------------------\n\n" ++
+        show busstats
+
+
+data BusStatistics = BusStatistics { getBusTrafficBytes     :: BusTrafficBytes
+                                   , getPrivateDataAccesses :: PrivateDataAccesses
+                                   , getPublicDataAccesses  :: PublicDataAccesses 
+                                   } deriving (Eq)
+
+instance Show BusStatistics where
+    show (BusStatistics bustraffic private public) = 
         "Bus Traffic (Bytes): " ++ (show bustraffic) ++ "\n" ++
         "Private Data Accesses: " ++ (show private) ++ "\n" ++ 
         "Public Data Accesses: " ++ (show public) ++ "\n"
