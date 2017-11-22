@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module SimulatorCore where
 
 import Trace
