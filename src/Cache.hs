@@ -1,4 +1,4 @@
-module Cache (Cache, create, issueRead, commitRead, issueWrite, commitWrite, busGetBlockState, busSetBlockState, busAllocate, busEvict, elapse, isCacheHit) where
+module Cache (Cache, getCacheParams, create, issueRead, commitRead, issueWrite, commitWrite, busGetBlockState, busSetBlockState, busAllocate, busEvict, elapse, isCacheHit) where
 
 import CacheParams (CacheParams)
 import qualified CacheParams
@@ -18,6 +18,9 @@ writeCycles = 1
 type IsCacheHit = Bool
 
 data Cache = Cache CacheParams (Array Int CacheSet) NumCycles (Maybe IsCacheHit)
+
+getCacheParams :: Cache -> CacheParams
+getCacheParams (Cache cacheParams _ _ _) = cacheParams
 
 -- |Creates an empty cache with the specified cache size, associativity, and block size.
 --  Returns the empty cache on successful execution.
