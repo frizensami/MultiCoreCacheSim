@@ -12,7 +12,7 @@ import qualified Memory
 import Protocol
 
 data MESIState = MESIWaitCacheRead | MESIWaitCacheWrite
-    | MESIIssueBusTr BusTr | MESIWaitBusTr
+    | MESIWaitBusTr
     | MESIWaitMemoryRead | MESIWaitMemoryWrite
     | MESIWaitCacheRewrite | MESIDone deriving (Show)
 
@@ -29,7 +29,7 @@ load Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memo
 
 -- Load on WaitCacheRead.
 -- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done/WaitCacheRead depending on the cache/bus states.
-load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
+load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     maybeAcquiredCacheBus = case cacheHit of
@@ -40,11 +40,16 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIStat
     newMESIState = case cacheHit of
         Just True   -> MESIDone -- Cache hit, load operation is done
         Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on the bus state after acquire attempt
-            Nothing                 -> MESIIssueBusTr $ MESIBusRd memoryAddress -- Bus can't be acquired, keep trying to acquire
+            Nothing                 -> MESIWaitCacheRead -- Bus can't be acquired, keep trying to acquire on WaitCacheRead state
             Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
                 True    -> MESIWaitBusTr -- Bus is busy, wait for bus transaction to finish
                 False   -> MESIWaitMemoryRead -- Bus transaction is instant, do a memory read and go to memory read state
         Nothing     -> MESIWaitCacheRead -- Cache read not finished yet, wait until it is finished
+
+    newCache = case cacheHit of
+        Just True   -> Cache.commitRead memoryAddress cache -- Cache hit, do a commit read
+        Just False  -> cache -- Cache miss, no changes to cache
+        Nothing     -> cache -- Cache read not finished yet, no changes to cache
 
     newMemory = case cacheHit of
         Just True   -> memory -- Cache hit, no memory operation needed
@@ -54,25 +59,6 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIStat
                 True    -> memory -- Bus is busy, no memory modification until bus transaction is finished
                 False   -> Memory.issueRead memory -- Bus transaction is instant, do a memory read
         Nothing     -> memory -- Cache read not finished yet, no memory operation needed
-
-    newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Returns the acquired cache bus if the bus is acquired
-
--- Load on IssueBusTr, this state could only be reached if bus was busy during after cache read is done.
--- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead depending on the bus state.
-load (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
-    maybeAcquiredCacheBus = Bus.acquire busTr cacheBus
-
-    newMESIState = case maybeAcquiredCacheBus of
-        Nothing                   -> MESIIssueBusTr busTr -- Bus can't be acquired, keep trying to acquire bus
-        Just acquiredCacheBus     -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether the bus transaction is instant
-            True    -> MESIWaitBusTr -- Bus is busy (non-instant transaction), wait for it to finish
-            False   -> MESIWaitMemoryRead -- Bus transaction is instant, do a memory read and go to memory read state
-
-    newMemory = case maybeAcquiredCacheBus of
-        Nothing                 -> memory -- Bus can't be acquired, no change to memory while waiting for bus acquisition
-        Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, memory operations might be issued depending on whether the bus transaction is instant
-            True    -> memory -- Bus is busy (bus transaction not instant), no changes to memory
-            False   -> Memory.issueRead memory -- Bus transaction is instant, immediately issue a memory read
 
     newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Returns the acquired cache bus if the bus is acquired
 
@@ -144,14 +130,14 @@ store Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, mem
 
 -- Store on WaitCacheWrite.
 -- Could proceed to Done/IssueBusTr/WaitBusTr/WaitMemoryRead/WaitCacheWrite depending on the bus states and whether it is a cache hit.
-store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
+store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
     maybeAcquiredCacheBus = case cacheHit of
-        Just True   -> case Cache.busGetBlockState memoryAddress cache of -- Cache hit, bus transaction might be issued depending on the block state
+        Just True   -> case blockState of -- Cache hit, bus transaction might be issued depending on the block state
             Just M      -> Nothing -- Cache hit on M state, no need to acquire the bus
-            Just E      -> error "Cache block still on E state after write is finished"
+            Just E      -> Nothing -- Cache hit on E state, no need to acquire the bus
             Just S      -> Bus.acquire (MESIBusUpg memoryAddress) cacheBus -- Cache hit on S state, issue a MESIBusUpg transaction to invalidate other copies
             _           -> error "Cache hit on I state"
         Just False  -> Bus.acquire (MESIBusRdX memoryAddress) cacheBus -- Cache miss, issue a MESIBusRdX transaction to invalidate other copies and read from memory
@@ -160,17 +146,28 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
     newMESIState = case cacheHit of
         Just True   -> case blockState of -- Cache hit, next state depends on the block state
             Just M      -> MESIDone -- Cache hit on M state, immediately go to Done state
-            Just E      -> error "Cache block still on E state after write is finished"
+            Just E      -> MESIDone -- Cache hit on E state, immediately go to Done state
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, next state depends on whether bus is acquired
-                Nothing                 -> MESIIssueBusTr $ MESIBusUpg memoryAddress -- Bus not acquired, keep trying to acquire on IssueBusTr state
+                Nothing                 -> MESIWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
                 Just acquiredCacheBus   -> MESIDone -- Bus acquired, invalidation is instant, go to Done state
             _           -> error "Cache hit on I state"
         Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether bus is acquired
-            Nothing                 -> MESIIssueBusTr $ MESIBusRdX memoryAddress -- Bus not acquired, keep trying to acquire on IssueBusTr state
+            Nothing                 -> MESIWaitCacheWrite -- Bus not acquired, keep trying to acquire on IssueBusTr state
             Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
                 True    -> MESIWaitBusTr -- Bus is busy (transaction not instant), go to WaitBusTr state
                 False   -> MESIWaitMemoryRead -- Bus transaction is instant, issue memory read and go to WaitMemoryRead state
         Nothing     -> MESIWaitCacheWrite
+
+    newCache = case cacheHit of
+        Just True   -> case blockState of
+            Just M      -> Cache.commitWrite memoryAddress cache -- Cache hit on M block, commit write
+            Just E      -> Cache.commitWrite memoryAddress cache -- Cache hit on E block, commit write
+            Just S      -> case maybeAcquiredCacheBus of
+                Nothing                 -> cache -- Bus can't be acquired, do not commit write on this cycle to maintain original cache state
+                Just acquiredCacheBus   -> Cache.commitWrite memoryAddress cache -- Bus acquired, commit write is now allowed
+            _           -> error "Cache hit on I state"
+        Just False  -> cache -- Cache miss, no changes to cache
+        Nothing     -> cache -- Cache is still busy, no changes to cache
 
     newMemory = case cacheHit of
         Just True   -> memory -- Cache hit, no memory operation needed
@@ -184,43 +181,13 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
     newCacheBus = case cacheHit of
         Just True   -> case blockState of
             Just M      -> cacheBus -- Cache hit on M state, no bus transaction generated, return the same bus
-            Just E      -> error "Cache block still on E state after write is finished"
+            Just E      -> cacheBus -- Cache hit on E state, no bus transaction generated, return the same bus
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, new bus depends on whether the bus is acquired successfully
                 Nothing                 -> cacheBus -- Bus has not been acquired, return the same bus
                 Just acquiredCacheBus   -> Bus.release acquiredCacheBus -- Bus has been acquired, will not be busy (only invalidate), release acquired bus
             _           -> error "Cache hit on I state"
         Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
-
--- Store on IssueBusTr, this state could only be reached if bus was busy after cache write was done and a bus transaction is required.
--- Could proceed to IssueBusTr/Done/WaitBusTr/WaitMemoryRead depending on the bus states.
-store (Just (MESIIssueBusTr busTr)) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, newCacheBus) where
-    maybeAcquiredCacheBus = Bus.acquire busTr cacheBus
-
-    newMESIState = case maybeAcquiredCacheBus of
-        Nothing                 -> MESIIssueBusTr busTr -- Bus not acquired, keep trying to acquire bus on IssueBusTr state
-        Just acquiredCacheBus   -> case busTr of -- Bus acquired, next state depends on the bus transaction and whether it is instant
-            MESIBusUpg _    -> MESIDone -- MESIBusUpg transaction is always instant, go to done state as no other operations need to be done
-            MESIBusRdX _    -> case Bus.isBusy acquiredCacheBus of -- MESIBusRdX, next state depends on whether the transaction is instant
-                True    -> MESIWaitBusTr -- Bus is busy (non-instant transaction), wait for it to finish
-                False   -> MESIWaitMemoryRead -- Bus transaction is instant, issue a memory read and go to memory read state
-            _           -> error "Unknown bus transaction on MESIProtocol.store"
-
-    newMemory = case maybeAcquiredCacheBus of
-        Nothing                 -> memory -- Bus not acquired, no memory operation issued on this cycle
-        Just acquiredCacheBus   -> case busTr of -- Bus acquired, memory read might be issued depending on the bus transaction and whether it is instant
-            MESIBusUpg _    -> memory -- MESIBusUpg transaction is always instant, no memory read needs to be issued
-            MESIBusRdX _    -> case Bus.isBusy acquiredCacheBus of -- MESIBusRdX, next state depends on whether the transaction is instant
-                True    -> memory -- Bus is busy (non-instant transaction), no memory read issued on this cycle
-                False   -> Memory.issueRead memory -- Bus transaction is instant, issue a memory read and go to memory read state
-            _               -> error "Unknown bus transaction on MESIProtocol.store"
-
-    newCacheBus = case maybeAcquiredCacheBus of
-        Nothing                 -> cacheBus -- Bus not acquired, no changes to bus on this cycle
-        Just acquiredCacheBus   -> case busTr of -- Bus acquired, new cache bus depends on the bus transaction
-            MESIBusUpg _    -> Bus.release acquiredCacheBus -- MESIBusUpg transaction is instant and store is finished, immediately release the bus afterwards
-            MESIBusRdX _    -> acquiredCacheBus -- MESIBusRdX transaction will always result in an acquired cache bus
-            _               -> error "Unknown bus transaction on MESIProtocol.store"
 
 -- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on whether the bus is still busy.
@@ -277,13 +244,18 @@ store (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIS
 
 -- Store on WaitCacheRewrite, this state could only be reached on a write miss, requiring a fetch from the memory.
 -- Could proceed to Done/WaitCacheRewrite depending on whether the cache is still busy.
-store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESIState, cache, memory, newCacheBus) where
+store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     newMESIState = case cacheHit of
         Just True   -> MESIDone -- Cache rewrite was a hit, store is done, go to Done state
         Just False  -> error "Cache miss on rewrite"
         Nothing     -> MESIWaitCacheRewrite -- Cache rewrite has not finished, wait in WaitCacheRewrite state
+
+    newCache = case cacheHit of
+        Just True   -> Cache.commitWrite memoryAddress cache -- Cache rewrite has finished and was a hit, commit write
+        Just False  -> error "Cache miss on rewrite"
+        Nothing     -> cache -- Cache rewrite has not finished, do not commit write
 
     newCacheBus = case cacheHit of
         Just True   -> Bus.release cacheBus -- Cache rewrite was a hit, store is done, release the cache bus
