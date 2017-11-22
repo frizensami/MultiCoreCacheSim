@@ -1,5 +1,5 @@
 -- |This module defines methods for the shared bus between processors
-module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, isShared, elapse, isBusy) where
+module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, isShared, elapse, isBusy, getCacheBusCaches) where
 
 import Definitions
 import Cache (Cache)
@@ -10,6 +10,9 @@ import qualified Memory
 
 -- Problem-specific bus type
 data CacheBus = CacheBus [Cache] Memory (Maybe BusTr) NumCycles
+
+getCacheBusCaches :: CacheBus -> [Cache]
+getCacheBusCaches (CacheBus caches _ _ _) = caches
 
 -- Simplified bus event type until I figure out how to make two separate types that 
 -- 1. Can be treated as the same type in some circumstances but 

@@ -99,26 +99,26 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         -- Run a single processor cycle
         (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus'
 
+        -- The newBus contains updated caches for EVERY PROCESSOR EXCEPT THE ONE THAT JUST RAN.
+        -- We need to update all those processors with the new caches from the bus
+        correctCaches = removeNthElement (Bus.getCacheBusCaches newBus) processorIndex
+        processorCorrectCacheZip = zip restOfProcessors correctCaches
+        updatedRestOfProcessors = map (\((p, t), c) -> (updateProcessorCache p c, t)) processorCorrectCacheZip
+
         -- Insert the modified processor back into the list of processors
-        newProcessorTraceList = insertElementAtIdx restOfProcessors processorIndex (newProcessor, restOfTraces)
-
-        -- Consider if we need to re-create the bus here after this processor is complete
-        -- No need if we dont' do anything with the bus till next run of this function
-
-        -- SPECIAL CASE: IF WE HAVE FINISHED ALL PROCESSORS FOR THIS CYCLE - RUN THE EVENT BUS
-        -- (newProcessorTraceList', newBus') = 
-        --    if processorIndex == (num_processors - 1)
-        --        then executeEventBus newProcessorTraceList eventBus
-        --        else (newProcessorTraceList, newBus)
+        newProcessorTraceList = insertElementAtIdx updatedRestOfProcessors processorIndex (newProcessor, restOfTraces)
 
         -- Define the cycle and processor number arguments for the next recursive call
         newProcessorIndex = (processorIndex + 1) `mod` num_processors
-        newNumCyclesCompleted = if newProcessorIndex == 0 then numCyclesCompleted + 1 else numCyclesCompleted
+        newNumCyclesCompleted =  if newProcessorIndex == 0 then trace "-----------\n" $ numCyclesCompleted + 1 else numCyclesCompleted
+
+        -- Elapse a bus cycle if all processors are complete
+        elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
     in 
         if allProcessorsComplete processorTraceList
             then trace "Simulation complete: getting stats" $ 
                          getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pid=" ++ show newProcessorIndex ++ ": Cycles Completed: " ++ show newNumCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList newBus newProcessorIndex newNumCyclesCompleted
+            else trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
 
     
 

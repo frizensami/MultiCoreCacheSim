@@ -20,5 +20,4 @@ type NumCacheSets = Int
 type BlockTag = Int
 type SetIndex = Int
 type Offset = Int
-type Address = Int
 type NumCycles = Int

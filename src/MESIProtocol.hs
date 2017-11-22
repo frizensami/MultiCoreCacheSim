@@ -14,7 +14,7 @@ import Protocol
 data MESIState = MESIWaitCacheRead | MESIWaitCacheWrite
     | MESIWaitBusTr
     | MESIWaitMemoryRead | MESIWaitMemoryWrite
-    | MESIWaitCacheRewrite | MESIDone
+    | MESIWaitCacheRewrite | MESIDone deriving (Show)
 
 instance ProtocolState MESIState where
     isDone MESIDone = True
