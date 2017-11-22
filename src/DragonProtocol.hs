@@ -221,7 +221,7 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus = (newDrag
             Just acquiredCacheBus   -> acquiredCacheBus -- Bus acquired, return the acquired bus
         Nothing     -> cacheBus -- Cache is still busy, no changes to cache bus on this cycle
 
-store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus = (DragonWaitCacheRewrite, newCache, memory, newCacheBus) where
+store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus = (newDragonState, newCache, memory, newCacheBus) where
     isCacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
