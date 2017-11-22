@@ -51,7 +51,7 @@ data BusStatistics = BusStatistics { getBusTrafficBytes     :: BusTrafficBytes
                                    } deriving (Eq)
 
 instance Show BusStatistics where
-    show (BusStatistics ivupd bustraffic private public) = 
+    show (BusStatistics bustraffic ivupd private public) = 
         "Bus Traffic (Bytes): " ++ (show bustraffic) ++ "\n" ++
         "Bus invalidations/updates: " ++ (show ivupd) ++ "\n" ++
         "Private Data Accesses: " ++ (show private) ++ "\n" ++ 
@@ -59,16 +59,16 @@ instance Show BusStatistics where
 
 
 addBusTrafficStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
-addBusTrafficStats (BusStatistics ivupd traffic private public) toAdd = BusStatistics (traffic + toAdd) ivupd private public
+addBusTrafficStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics (traffic + toAdd) ivupd private public
 
 addBusIvUpdStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
-addBusIvUpdStats (BusStatistics ivupd traffic private public) toAdd = BusStatistics traffic (ivupd + 1) private public
+addBusIvUpdStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic (ivupd + toAdd) private public
 
 addBusPrivateAccessStats :: BusStatistics -> PrivateDataAccesses -> BusStatistics
-addBusPrivateAccessStats (BusStatistics ivupd traffic private public) toAdd = BusStatistics traffic ivupd (private + toAdd) public
+addBusPrivateAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd (private + toAdd) public
 
 addBusPublicAccessStats :: BusStatistics -> PublicDataAccesses -> BusStatistics
-addBusPublicAccessStats (BusStatistics ivupd traffic private public) toAdd = BusStatistics traffic ivupd private (public + toAdd)
+addBusPublicAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd private (public + toAdd)
 
 incrementBusPrivateAccessStats :: BusStatistics -> BusStatistics
 incrementBusPrivateAccessStats stats = addBusPrivateAccessStats stats 1
