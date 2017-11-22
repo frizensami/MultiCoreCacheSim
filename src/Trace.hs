@@ -13,8 +13,8 @@ data Trace = LoadInstruction MemoryAddress | StoreInstruction MemoryAddress | Ot
 toTraceWithError :: String -> Trace
 toTraceWithError traceString = 
     let traceComponents = words traceString
-        !firstWord = head traceComponents
-        !secondInt = read $ traceComponents!!1 :: Int
+        firstWord = head traceComponents
+        secondInt = read $ traceComponents!!1 :: Int
     in
     case firstWord of
         "0" -> LoadInstruction  (fromIntegral secondInt)
