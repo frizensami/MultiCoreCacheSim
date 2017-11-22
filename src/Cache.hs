@@ -1,4 +1,4 @@
-module Cache (Cache, create, issueRead, issueWrite, busGetBlockState, busSetBlockState, busAllocate, busEvict, elapse, isCacheHit) where
+module Cache (Cache, create, issueRead, commitRead, issueWrite, commitWrite, busGetBlockState, busSetBlockState, busAllocate, busEvict, elapse, isCacheHit) where
 
 import CacheParams (CacheParams)
 import qualified CacheParams
@@ -39,18 +39,21 @@ issueRead :: MemoryAddress -> Cache -> Cache
 issueRead memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
     (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-    newCache = case cacheHit of
-        True    -> Cache oldCacheParams newCacheSets readCycles maybeIsCacheHit
-        False   -> Cache oldCacheParams oldCacheSets readCycles maybeIsCacheHit
-        where
-            -- Update the cache sets to ensure LRU policy by evicting and reallocating the cache block
-            newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
-                newCacheSet = CacheSet.allocate evictedBlockState blockTag offset memoryAddress evictedCacheSet where
-                    (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
+    newCache = Cache oldCacheParams oldCacheSets readCycles maybeIsCacheHit where
+        maybeIsCacheHit = Just $ CacheSet.hasTag blockTag $ oldCacheSets!setIndex
 
-            oldCacheSet = oldCacheSets!setIndex
-            cacheHit = CacheSet.hasTag blockTag oldCacheSet
-            maybeIsCacheHit = Just cacheHit
+-- |Issues a cache read commit of a memory address on the specified cache.
+--  Returns the renewed cache.
+commitRead :: MemoryAddress -> Cache -> Cache
+commitRead memoryAddress (Cache oldCacheParams oldCacheSets 0 (Just True)) = newCache where
+    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
+
+    newCache = Cache oldCacheParams newCacheSets 0 $ Just True where
+        newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
+            newCacheSet = CacheSet.allocate evictedBlockState blockTag offset memoryAddress evictedCacheSet where
+                (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet where
+                    oldCacheSet = oldCacheSets!setIndex
+commitRead memoryAddress (Cache _ _ _ _) = error "Commit read when cache is still busy or cache miss"
 
 -- |Issues a cache write of a memory address to the specified cache.
 --  Returns the renewed cache.
@@ -58,25 +61,26 @@ issueWrite :: MemoryAddress -> Cache -> Cache
 issueWrite memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
     (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
-    newCache = case cacheHit of
-        True    -> Cache oldCacheParams newCacheSets writeCycles maybeIsCacheHit
-        False   -> Cache oldCacheParams oldCacheSets writeCycles maybeIsCacheHit
-        where
-            -- Update the cache sets to ensure LRU policy by evicting and reallocating the cache block with a new modified state
-            newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
-                newCacheSet = CacheSet.allocate modifiedState blockTag offset memoryAddress evictedCacheSet where
-                        modifiedState = case evictedBlockState of
-                            M   -> M
-                            E   -> M
-                            S   -> M
-                            SC  -> M
-                            SM  -> M
-                            I   -> error "Cache hit on I state"
-                        (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet
+    newCache = Cache oldCacheParams oldCacheSets writeCycles maybeIsCacheHit where
+        maybeIsCacheHit = Just $ CacheSet.hasTag blockTag $ oldCacheSets!setIndex
 
-            oldCacheSet = oldCacheSets!setIndex
-            cacheHit = CacheSet.hasTag blockTag oldCacheSet
-            maybeIsCacheHit = Just cacheHit
+commitWrite :: MemoryAddress -> Cache -> Cache
+commitWrite memoryAddress (Cache oldCacheParams oldCacheSets 0 (Just True)) = newCache where
+    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
+
+    newCache = Cache oldCacheParams newCacheSets 0 $ Just True where
+        newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
+            newCacheSet = CacheSet.allocate modifiedState blockTag offset memoryAddress evictedCacheSet where
+                modifiedState = case evictedBlockState of
+                    M   -> M
+                    E   -> M
+                    S   -> M
+                    SC  -> M
+                    SM  -> M
+                    I   -> error "Cache hit on I state"
+                (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet where
+                    oldCacheSet = oldCacheSets!setIndex
+commitWrite memoryAddress (Cache _ _ _ _) = error "Commit write when cache is still busy or cache miss"
 
 busGetBlockState :: MemoryAddress -> Cache -> (Maybe BlockState)
 busGetBlockState memoryAddress (Cache oldCacheParams oldCacheSets _ _) = maybeBlockState where
