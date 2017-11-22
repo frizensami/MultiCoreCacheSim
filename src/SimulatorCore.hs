@@ -118,7 +118,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         if allProcessorsComplete processorTraceList
             then getStatsReport processorTraceList numCyclesCompleted
             else 
-                if newNumCyclesCompleted `mod` 100000 == 0 then
+                if newNumCyclesCompleted `mod` 1 == 0 then
                     trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
                 else  runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
 

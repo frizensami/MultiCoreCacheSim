@@ -10,7 +10,7 @@ import Definitions
 import Trace
 import Bus
 import Statistics
-import qualified Debug.NoTrace as T
+import qualified Debug.Trace as T
 import Cache (Cache)
 import qualified Cache as Cache
 import Protocols
