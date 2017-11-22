@@ -5,4 +5,4 @@ import MESIProtocol
 -- | STUB TYPE:
 type DragonState = String
 
-data ProtocolState = MESIProtocol MESIState | DragonProtocol DragonState deriving (Show)
+data ProtocolStates = MESIProtocol MESIState | DragonProtocol DragonState deriving (Show)
