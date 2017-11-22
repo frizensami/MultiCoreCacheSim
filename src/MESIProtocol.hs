@@ -131,6 +131,10 @@ load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESISt
         True    -> cacheBus -- Memory write of evicted block is still running, no changes to cache bus on this cycle
         False   -> Bus.release cacheBus -- Memory write of evicted block is complete, Done state reached, release the cache bus
 
+load (Just MESIWaitCacheWrite) _ _ _ _ = error "WaitCacheWrite state on MESIProtocol.load"
+load (Just MESIWaitCacheRewrite) _ _ _ _ = error "WaitCacheRewrite state on MESIProtocol.load"
+load (Just MESIDone) _ _ _ _ = error "Done state on MESIProtocol.load"
+
 -- |Stores a memory address from the processor while adhering to the MESI coherence protocol.
 --  Returns the renewed MESIState, cache, memory, and cache bus.
 store :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIState, Cache, Memory, CacheBus)
@@ -285,3 +289,6 @@ store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESI
         Just True   -> Bus.release cacheBus -- Cache rewrite was a hit, store is done, release the cache bus
         Just False  -> error "Cache miss on rewrite"
         Nothing     -> cacheBus -- Cache rewrite has not finished, do not release cache bus this cycle
+
+store (Just MESIWaitCacheRead) _ _ _ _ = error "WaitCacheRead state on MESIProtocol.store"
+store (Just MESIDone) _ _ _ _ = error "Done state on MESIProtocol.store"
