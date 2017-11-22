@@ -10,13 +10,14 @@ import Definitions
 import Trace
 import Bus
 import Statistics
-import qualified Debug.NoTrace as T
+import qualified Debug.Trace as T
 import Cache (Cache)
 import qualified Cache as Cache
 import Protocols
 import qualified MESIProtocol
 import Memory 
 import Protocol
+import qualified DragonProtocol
 
 type HasConsumedTrace = Bool
 
@@ -72,12 +73,13 @@ handleTrace (Processor pid protocol cache stats _ pstate mem) trace@(OtherInstru
         newProcessor = Processor pid protocol cache stats computeCycles pstate mem-- Set the compute cycles
 
 -- | If it's any other instruction, choose which protocol should execute it and run the load/store fx
-handleTrace (Processor pid protocol cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
+handleTrace (Processor pid MESI cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
+    -- Run the protocol function and update internal state
     -- Select which protocol function to execute
-    (protocolFunction, address) = case (protocol, trace) of
-        (MESI, LoadInstruction  addr) -> (MESIProtocol.load,  addr)
-        (MESI, StoreInstruction addr) -> (MESIProtocol.store, addr)
-        (p, t)                        -> error $ "Protocol " ++ show p ++ " and trace " ++ show t ++ " not supported together"
+    (protocolFunction, address) = case trace of
+        LoadInstruction  addr     -> (MESIProtocol.load,  addr)
+        StoreInstruction addr     -> (MESIProtocol.store, addr)
+        t                         -> error "Not expecing OtherInstruction inside handleTrace!"
     -- Run the protocol function and update internal state
     (newPState, newCache, newMemory, newBus) = case pstate of
         Nothing                       -> protocolFunction Nothing address cache mem eventBus
@@ -89,11 +91,30 @@ handleTrace (Processor pid protocol cache stats cycles pstate mem) trace eventBu
     elapsedMemory = Memory.elapse newMemory
     -- Update internal state and return values
     hasConsumedTrace = isDone newPState
-    finalpstate = if hasConsumedTrace then Nothing else 
-        case protocol of 
-            MESI    -> Just $ MESIProtocol newPState 
-            Dragon  -> error "Dragon not supported yet for state storage!"
+    finalpstate = if hasConsumedTrace then Nothing else Just $ MESIProtocol newPState 
     newProcessor  = Processor pid MESI elapsedCache stats cycles finalpstate elapsedMemory
+
+-- | If it's any other instruction, choose which protocol should execute it and run the load/store fx
+handleTrace (Processor pid Dragon cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
+    -- Run the protocol function and update internal state
+    -- Select which protocol function to execute
+    (protocolFunction, address) = case trace of
+        LoadInstruction  addr     -> (DragonProtocol.load,  addr)
+        StoreInstruction addr     -> (DragonProtocol.store, addr)
+        t                         -> error "Not expecing OtherInstruction inside handleTrace!"
+    -- Run the protocol function and update internal state
+    (newPState, newCache, newMemory, newBus) = case pstate of
+        Nothing                           -> protocolFunction Nothing address cache mem eventBus
+        Just (DragonProtocol dragonState) -> protocolFunction (Just dragonState) address cache mem eventBus
+        x                                 -> error $ "handleTrace does not support state " ++ show x
+    -- Design decision to NOT update the cache here since we'd have to check for equality through entire array
+    -- Run a tick for the cache and memory
+    elapsedCache  = Cache.elapse newCache 
+    elapsedMemory = Memory.elapse newMemory
+    -- Update internal state and return values
+    hasConsumedTrace = isDone newPState
+    finalpstate = if hasConsumedTrace then Nothing else Just $ DragonProtocol newPState 
+    newProcessor  = Processor pid Dragon elapsedCache stats cycles finalpstate elapsedMemory
 
 -- | Runs one compute cycle from the number of cycles left to do computation
 processOneComputeCycle :: Processor -> (Processor, Bool)

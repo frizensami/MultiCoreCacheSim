@@ -1,8 +1,6 @@
 module Protocols where
 
 import MESIProtocol
-
--- | STUB TYPE:
-type DragonState = String
+import DragonProtocol
 
 data ProtocolStates = MESIProtocol MESIState | DragonProtocol DragonState deriving (Show)

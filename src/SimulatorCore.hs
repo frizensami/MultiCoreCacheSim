@@ -83,7 +83,7 @@ startSimulationPure processorsList tracesList =
         -- 3. Propagate all messages 
         report = runAllSimulationCycles processorTraceList eventBus 0 0
         
-    in "----Simulation Complete----\n" ++ show report
+    in "----Simulation Running----\n" ++ show report
 
 -- |Pass in the processors and traces, tbe index of the current processor being worked on, and the number of cycles completed.
 -- |Eventually the statistics report will be returned

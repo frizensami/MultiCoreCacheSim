@@ -14,7 +14,7 @@ import Protocol
 data DragonState = DragonWaitCacheRead | DragonWaitCacheWrite
     | DragonWaitBusTr
     | DragonWaitMemoryRead | DragonWaitMemoryWrite
-    | DragonWaitCacheRewrite | DragonDone
+    | DragonWaitCacheRewrite | DragonDone deriving (Show)
 
 instance ProtocolState DragonState where
     isDone DragonDone   = True
