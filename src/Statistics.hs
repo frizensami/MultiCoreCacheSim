@@ -56,4 +56,20 @@ instance Show BusStatistics where
         "Public Data Accesses: " ++ (show public) ++ "\n"
 
 
+addBusTrafficStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
+addBusTrafficStats (BusStatistics traffic private public) toAdd = BusStatistics (traffic + toAdd) private public
+
+addBusPrivateAccessStats :: BusStatistics -> PrivateDataAccesses -> BusStatistics
+addBusPrivateAccessStats (BusStatistics traffic private public) toAdd = BusStatistics traffic (private + toAdd) public
+
+addBusPublicAccessStats :: BusStatistics -> PublicDataAccesses -> BusStatistics
+addBusPublicAccessStats (BusStatistics traffic private public) toAdd = BusStatistics traffic private (public + toAdd)
+
+incrementBusPrivateAccessStats :: BusStatistics -> BusStatistics
+incrementBusPrivateAccessStats stats = addBusPrivateAccessStats stats 1
+
+incrementBusPublicAccessStats :: BusStatistics -> BusStatistics
+incrementBusPublicAccessStats  stats = addBusPublicAccessStats  stats 1
+
+
 
