@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module SimulatorCore where
 
 import Trace
@@ -7,7 +9,7 @@ import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
-import Debug.Trace
+import Debug.NoTrace
 import Statistics
 import qualified Memory 
 
@@ -52,7 +54,7 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             processorsList = map newProcessorWithoutID [0..(num_processors-1)] 
 
         -- Get the entire list of pure traces from the IO [[Trace]] structure
-        tracesList <- tracesIO
+        !tracesList <- tracesIO
 
         -- Run the pure section of the simulation (end of impure code, start of actual sim)
         let statsReport = startSimulationPure processorsList tracesList
@@ -90,30 +92,30 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
     -- Run this simulation for all 4 processors then increment the cycle counter
     let 
         -- Get the current processor to be operated on, and the rest of the list
-        currentProcessorTrace = processorTraceList!!processorIndex
-        restOfProcessors = removeNthElement processorTraceList processorIndex
+        !currentProcessorTrace = processorTraceList!!processorIndex
+        !restOfProcessors = removeNthElement processorTraceList processorIndex
 
         -- RECONSTRUCT EVENT BUS EVERY CYCLE WITH CACHES OF ALL PROCESSORS to keep it updated
-        eventBus' = Bus.updateCaches eventBus (map (getCache . fst) processorTraceList) 
+        !eventBus' = Bus.updateCaches eventBus (map (getCache . fst) processorTraceList) 
 
         -- Run a single processor cycle
-        (newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus'
+        !(newProcessor, restOfTraces, newBus) = runOneProcessorCycle currentProcessorTrace eventBus'
 
         -- The newBus contains updated caches for EVERY PROCESSOR EXCEPT THE ONE THAT JUST RAN.
         -- We need to update all those processors with the new caches from the bus
-        correctCaches = removeNthElement (Bus.getCacheBusCaches newBus) processorIndex
-        processorCorrectCacheZip = zip restOfProcessors correctCaches
-        updatedRestOfProcessors = map (\((p, t), c) -> (updateProcessorCache p c, t)) processorCorrectCacheZip
+        !correctCaches = removeNthElement (Bus.getCacheBusCaches newBus) processorIndex
+        !processorCorrectCacheZip = zip restOfProcessors correctCaches
+        !updatedRestOfProcessors = map (\((p, t), c) -> (updateProcessorCache p c, t)) processorCorrectCacheZip
 
         -- Insert the modified processor back into the list of processors
-        newProcessorTraceList = insertElementAtIdx updatedRestOfProcessors processorIndex (newProcessor, restOfTraces)
+        !newProcessorTraceList = insertElementAtIdx updatedRestOfProcessors processorIndex (newProcessor, restOfTraces)
 
         -- Define the cycle and processor number arguments for the next recursive call
-        newProcessorIndex = (processorIndex + 1) `mod` num_processors
-        newNumCyclesCompleted =  if newProcessorIndex == 0 then trace "-----------\n" $ numCyclesCompleted + 1 else numCyclesCompleted
+        !newProcessorIndex = (processorIndex + 1) `mod` num_processors
+        !newNumCyclesCompleted =  if newProcessorIndex == 0 then trace "-----------\n" $ numCyclesCompleted + 1 else numCyclesCompleted
 
         -- Elapse a bus cycle if all processors are complete
-        elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
+        !elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
     in 
         if allProcessorsComplete processorTraceList
             then trace "Simulation complete: getting stats" $ 
