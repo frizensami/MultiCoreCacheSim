@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module SimulatorCore where
 
 import Trace
@@ -9,7 +7,7 @@ import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
-import Debug.NoTrace
+import Debug.Trace
 import Statistics
 import qualified Memory 
 
@@ -51,13 +49,13 @@ runSimulation protocolInput fileName cacheSize associativity blockSize =
             
             newProcessorWithoutID   = Processor.createProcessor protocolInput cacheSize associativity blockSize
 
-            processorsList = map newProcessorWithoutID [0..(num_processors-1)] 
+            !processorsList = map newProcessorWithoutID [0..(num_processors-1)] 
 
         -- Get the entire list of pure traces from the IO [[Trace]] structure
         !tracesList <- tracesIO
 
         -- Run the pure section of the simulation (end of impure code, start of actual sim)
-        let statsReport = startSimulationPure processorsList tracesList
+        let statsReport = trace "Traceslist strictly loaded" $ startSimulationPure processorsList tracesList
 
         -- Now run one round of the simulation loop and see if a core needs another instruction
         return statsReport
@@ -112,15 +110,17 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
 
         -- Define the cycle and processor number arguments for the next recursive call
         !newProcessorIndex = (processorIndex + 1) `mod` num_processors
-        !newNumCyclesCompleted =  if newProcessorIndex == 0 then trace "-----------\n" $ numCyclesCompleted + 1 else numCyclesCompleted
+        !newNumCyclesCompleted =  if newProcessorIndex == 0 then {- trace "-----------\n" $ -} numCyclesCompleted + 1 else numCyclesCompleted
 
         -- Elapse a bus cycle if all processors are complete
         !elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
     in 
         if allProcessorsComplete processorTraceList
-            then trace "Simulation complete: getting stats" $ 
-                         getStatsReport processorTraceList numCyclesCompleted
-            else trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
+            then getStatsReport processorTraceList numCyclesCompleted
+            else 
+                if newNumCyclesCompleted `mod` 100000 == 0 then
+                    trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
+                else  runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
 
     
 
@@ -148,7 +148,7 @@ getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics
 getStatsReport processorTraceList totalCycles = 
     let 
         processorStatsList = map (getProcessorStatistics . fst) processorTraceList
-    in SimulationStatistics totalCycles processorStatsList (BusStatistics 0 0 0)
+    in SimulationStatistics totalCycles processorStatsList (BusStatistics 0 0 0 0)
 
 -- TO BE IMPLEMENTED
 -- executeEventBus :: [(Processor, [Trace])] -> CacheBus -> ([(Processor, [Trace])], CacheBus)

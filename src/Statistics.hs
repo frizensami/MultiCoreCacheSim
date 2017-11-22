@@ -19,7 +19,7 @@ instance Show ProcessorStatistics where
         "Compute Cycles: " ++ (show compute) ++ " | " ++
         "Load Store Instructions: " ++ (show loadstore) ++ " | " ++ 
         "Idle Cycles: " ++ (show idle) ++ " | " ++
-        "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) :: Double)) ++ "."
+        "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) * 100 :: Double)) ++ "%"
 
 newProcessorStatistics :: Int -> ProcessorStatistics
 newProcessorStatistics = ProcessorStatistics 0 0 0 0
@@ -45,31 +45,39 @@ instance Show SimulationStatistics where
 
 
 data BusStatistics = BusStatistics { getBusTrafficBytes     :: BusTrafficBytes
+                                   , busInvalidationsUpdates:: Int
                                    , getPrivateDataAccesses :: PrivateDataAccesses
                                    , getPublicDataAccesses  :: PublicDataAccesses 
                                    } deriving (Eq)
 
 instance Show BusStatistics where
-    show (BusStatistics bustraffic private public) = 
+    show (BusStatistics bustraffic ivupd private public) = 
         "Bus Traffic (Bytes): " ++ (show bustraffic) ++ "\n" ++
+        "Bus invalidations/updates: " ++ (show ivupd) ++ "\n" ++
         "Private Data Accesses: " ++ (show private) ++ "\n" ++ 
         "Public Data Accesses: " ++ (show public) ++ "\n"
 
 
 addBusTrafficStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
-addBusTrafficStats (BusStatistics traffic private public) toAdd = BusStatistics (traffic + toAdd) private public
+addBusTrafficStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics (traffic + toAdd) ivupd private public
+
+addBusIvUpdStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
+addBusIvUpdStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic (ivupd + toAdd) private public
 
 addBusPrivateAccessStats :: BusStatistics -> PrivateDataAccesses -> BusStatistics
-addBusPrivateAccessStats (BusStatistics traffic private public) toAdd = BusStatistics traffic (private + toAdd) public
+addBusPrivateAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd (private + toAdd) public
 
 addBusPublicAccessStats :: BusStatistics -> PublicDataAccesses -> BusStatistics
-addBusPublicAccessStats (BusStatistics traffic private public) toAdd = BusStatistics traffic private (public + toAdd)
+addBusPublicAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd private (public + toAdd)
 
 incrementBusPrivateAccessStats :: BusStatistics -> BusStatistics
 incrementBusPrivateAccessStats stats = addBusPrivateAccessStats stats 1
 
 incrementBusPublicAccessStats :: BusStatistics -> BusStatistics
 incrementBusPublicAccessStats  stats = addBusPublicAccessStats  stats 1
+
+incrementBusIvUpdStats :: BusStatistics -> BusStatistics
+incrementBusIvUpdStats  stats = addBusIvUpdStats stats 1
 
 
 
