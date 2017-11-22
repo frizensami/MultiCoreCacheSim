@@ -19,7 +19,7 @@ instance Show ProcessorStatistics where
         "Compute Cycles: " ++ (show compute) ++ " | " ++
         "Load Store Instructions: " ++ (show loadstore) ++ " | " ++ 
         "Idle Cycles: " ++ (show idle) ++ " | " ++
-        "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) :: Double)) ++ "."
+        "Cache Miss Rate: " ++ (show ((fromIntegral misscount / fromIntegral loadstore) * 100 :: Double)) ++ "%"
 
 newProcessorStatistics :: Int -> ProcessorStatistics
 newProcessorStatistics = ProcessorStatistics 0 0 0 0
