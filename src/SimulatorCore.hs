@@ -146,7 +146,7 @@ getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics
 getStatsReport processorTraceList totalCycles = 
     let 
         processorStatsList = map (getProcessorStatistics . fst) processorTraceList
-    in SimulationStatistics totalCycles processorStatsList 0 0 0
+    in SimulationStatistics totalCycles processorStatsList (BusStatistics 0 0 0)
 
 -- TO BE IMPLEMENTED
 -- executeEventBus :: [(Processor, [Trace])] -> CacheBus -> ([(Processor, [Trace])], CacheBus)
