@@ -13,6 +13,8 @@ import qualified Debug.Trace as T
 import Cache (Cache)
 import qualified Cache as Cache
 import Protocols
+import qualified MESIProtocol
+import Memory 
 
 type HasConsumedTrace = Bool
 
@@ -22,14 +24,15 @@ data Processor = Processor { getProcessorID         :: Int
                            , getProcessorStatistics :: ProcessorStatistics
                            , getCyclesToCompute     :: Int
                            , protocolState          :: Maybe ProtocolState
+                           , memory                 :: Memory
                            }
 
 instance Show Processor where
-    show (Processor pid protocol _ stats cycles protocolstate) = "Processor #" ++ show pid ++ ": Status - " ++ show protocol ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ show stats ++ ", ComputeCyclesLeft: " ++ show cycles ++ ", Protocol State: " ++ show protocolstate
+    show (Processor pid protocol _ stats cycles protocolstate _) = "Processor #" ++ show pid ++ ": Status - " ++ show protocol ++ {- ", Cache - " ++ (show cache) ++ -} ", Stats: " ++ show stats ++ ", ComputeCyclesLeft: " ++ show cycles ++ ", Protocol State: " ++ show protocolstate
 
 createProcessor ::  ProtocolInput ->  CacheSize -> Associativity -> BlockSize -> Int -> Processor
 createProcessor protocolInput cacheSize associativity blockSize pid = 
-    Processor pid protocol newCache (newProcessorStatistics pid) 0 Nothing where
+    Processor pid protocol newCache (newProcessorStatistics pid) 0 Nothing Memory.create where
         newCache = Cache.create cacheSize associativity blockSize
         protocol = case protocolInput of
             "MESI"   -> MESI
@@ -56,19 +59,21 @@ runOneCycle processor Nothing eventBus = (processor, True, eventBus)
 
 -- | Sets up the current trace into the processor and then executes the cycle if it's an OtherInstruction
 handleTrace :: Processor -> Trace -> CacheBus -> (Processor, HasConsumedTrace, CacheBus)
-handleTrace (Processor pid protocol cache stats cycles pstate) trace@(OtherInstruction computeCycles) eventBus = 
+handleTrace (Processor pid protocol cache stats cycles pstate mem) trace@(OtherInstruction computeCycles) eventBus = 
     runOneCycle newProcessor (Just trace) eventBus where
-        newProcessor = Processor pid protocol cache stats computeCycles pstate-- Set the compute cycles
-
---handleTrace processor trace@(LoadInstruction address) eventBus = (newProcessor, hasConsumedTrace, newBus) where
-  --  (newPState, newCache, newMemory, newBus) 
+        newProcessor = Processor pid protocol cache stats computeCycles pstate mem-- Set the compute cycles
+{-
+handleTrace (Processor pid MESI cache stats cycles pstate mem) trace@(LoadInstruction address) eventBus = (newProcessor, hasConsumedTrace, newBus) where
+    (newPState, newCache, newMemory, newBus) = case pstate of
+        Nothing -> MESIProtocol.load Nothing address cache mem eventBus
+-}
 -- Can't do anything about other instructions yet - do nothing except consume3
 handleTrace processor _ eventBus = (processor, True, eventBus)
 
 -- | Runs one compute cycle from the number of cycles left to do computation
 processOneComputeCycle :: Processor -> (Processor, Bool)
-processOneComputeCycle (Processor pid protocol cache stats cycles pstate) = (newProcessor, isDone) where
-    newProcessor = Processor pid protocol cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0) pstate
+processOneComputeCycle (Processor pid protocol cache stats cycles pstate mem) = (newProcessor, isDone) where
+    newProcessor = Processor pid protocol cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0) pstate mem
     isDone = getCyclesToCompute newProcessor == 0
 
 addOneStatsComputeCycle :: ProcessorStatistics -> ProcessorStatistics
