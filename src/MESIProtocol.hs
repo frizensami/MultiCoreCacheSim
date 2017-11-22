@@ -82,7 +82,7 @@ load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESISta
 
     (maybeEvictedBlockState, newCache) = case isMemoryBusy of
         True    -> (Nothing, cache) -- Memory is still busy, no allocation done on this cycle
-        False   -> case Bus.isShared memoryAddress cacheBus of -- Memory is no longer busy, do allocation on local cache
+        False   -> case Bus.hasSharedCopies memoryAddress cacheBus of -- Memory is no longer busy, do allocation on local cache
             True    -> Cache.busAllocate S memoryAddress cache -- Cache block is shared, allocate in S state
             False   -> Cache.busAllocate E memoryAddress cache -- Cache block is not shared, allocate in E state
 
@@ -139,7 +139,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just M      -> Nothing -- Cache hit on M state, no need to acquire the bus
             Just E      -> Nothing -- Cache hit on E state, no need to acquire the bus
             Just S      -> Bus.acquire (MESIBusUpg memoryAddress) cacheBus -- Cache hit on S state, issue a MESIBusUpg transaction to invalidate other copies
-            _           -> error "Cache hit on I state"
+            _           -> Bus.acquire (MESIBusRdX memoryAddress) cacheBus -- Cache hit on I state, block changed through bus by other protocol -> MESIBusRdX
         Just False  -> Bus.acquire (MESIBusRdX memoryAddress) cacheBus -- Cache miss, issue a MESIBusRdX transaction to invalidate other copies and read from memory
         Nothing     -> Nothing -- Cache write has not completed, no need to acquire the bus on this cycle
 
@@ -150,7 +150,11 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, next state depends on whether bus is acquired
                 Nothing                 -> MESIWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
                 Just acquiredCacheBus   -> MESIDone -- Bus acquired, invalidation is instant, go to Done state
-            _           -> error "Cache hit on I state"
+            _           -> case maybeAcquiredCacheBus of -- Cache hit on I state, block changed through bus, next state depends on whether the bus is acquired
+                Nothing                 -> MESIWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
+                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
+                    True    -> MESIWaitBusTr -- Bus is busy (transaction not instant), go to WaitBusTr state 
+                    False   -> MESIWaitMemoryRead -- Bus transaction is instant, issue memory read and go to WaitMemoryRead state
         Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether bus is acquired
             Nothing                 -> MESIWaitCacheWrite -- Bus not acquired, keep trying to acquire on IssueBusTr state
             Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
@@ -165,7 +169,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just S      -> case maybeAcquiredCacheBus of
                 Nothing                 -> cache -- Bus can't be acquired, do not commit write on this cycle to maintain original cache state
                 Just acquiredCacheBus   -> Cache.commitWrite memoryAddress cache -- Bus acquired, commit write is now allowed
-            _           -> error "Cache hit on I state"
+            _           -> cache -- Cache hit on I state, block changed through bus, no changes to cache
         Just False  -> cache -- Cache miss, no changes to cache
         Nothing     -> cache -- Cache is still busy, no changes to cache
 
@@ -185,7 +189,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
             Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, new bus depends on whether the bus is acquired successfully
                 Nothing                 -> cacheBus -- Bus has not been acquired, return the same bus
                 Just acquiredCacheBus   -> Bus.release acquiredCacheBus -- Bus has been acquired, will not be busy (only invalidate), release acquired bus
-            _           -> error "Cache hit on I state"
+            _           -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache hit on I state, block changed through bus, returns the acquired cache bus if any
         Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
 

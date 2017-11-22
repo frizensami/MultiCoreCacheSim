@@ -1,12 +1,17 @@
 -- |This module defines methods for the shared bus between processors
-module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, release, isShared, isModified, elapse, isBusy, getCacheBusCaches) where
+module Bus (CacheBus, BusTr (..), create, updateCaches, acquire, issue, release, hasSharedCopies, elapse, isBusy, getCacheBusCaches) where
 
 import Definitions
 import Cache (Cache)
 import qualified Cache
+import CacheParams (CacheParams)
+import qualified CacheParams
 import CacheBlock (BlockState (..))
 import Memory (Memory)
 import qualified Memory
+
+updateCycles :: Int
+updateCycles = 2
 
 -- Problem-specific bus type
 data CacheBus = CacheBus [Cache] Memory (Maybe BusTr) NumCycles
@@ -17,7 +22,8 @@ getCacheBusCaches (CacheBus caches _ _ _) = caches
 -- Simplified bus event type until I figure out how to make two separate types that 
 -- 1. Can be treated as the same type in some circumstances but 
 -- 2. Separate when putting into a list - aka a list can only have one of these typs (MESI or Dragon events)
-data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | MESIBusUpg MemoryAddress | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress deriving (Show)
+data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | MESIBusUpg MemoryAddress
+    | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress deriving (Show)
 
 -- | Creating brand new cache event bus - likely to be only called once then updated with recreate method
 create :: [Cache] -> Memory -> CacheBus
@@ -66,25 +72,40 @@ acquire (MESIBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Ju
 -- Case #4: Dragon BusRd
 acquire (DragonBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyCycles) = Just newCacheBus where
     newCacheBus = CacheBus newCaches newMemory newMaybeBusTr newBusyCycles where
-        -- Change all all M states to SM state, all E states to SC state
+        -- Change all M states to SM state, all E states to SC state
         newCaches = recursivelyUpdateBlockState M SM memoryAddress
             $ recursivelyUpdateBlockState E SC memoryAddress oldCaches
-        newMemory = case isCachedModified of
+        newMemory = case cachesHaveModifiedCopies of
             True    -> Memory.issueWrite oldMemory -- an SM/M state exists in other cache, write back from that cache to memory
             False   -> oldMemory -- no SM/M state exists in other cache, no need to issue memory write
             where
-                isCachedModified = isModified memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles
+                cachesHaveModifiedCopies = hasModifiedCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles
         newMaybeBusTr = Just $ DragonBusRd memoryAddress
-        newBusyCycles = case isCachedShared of
-            True    -> 2 -- the memory address is cached in other caches, bus busy cycles set to 2N (forwarding entire block of N words)
-            False   -> 0 -- the memory address is not cached in other caches, bus busy cycles is 0 (no non-instant bus operation)\
+        newBusyCycles = case cachesHaveCopies of
+            True    -> updateCycles * wordsPerBlock -- Cached in other caches, bus busy cycles set to updateCycles * N (forwarding entire block of N words)
+            False   -> 0 -- Not cached in other caches, bus busy cycles is 0 (instant bus operation)
             where
-                isCachedShared = isShared memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles
-
+                cachesHaveCopies = hasCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles
+                wordsPerBlock = (CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0) `div` 4
 -- Case #5: Dragon BusUpd
-acquire (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory Nothing _) = Nothing
+acquire (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyCycles) = Just newCacheBus where
+    newCacheBus = CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles where
+        -- Change all SM states to SC state
+        newCaches = recursivelyUpdateBlockState SM SC memoryAddress oldCaches
+        newMaybeBusTr = Just $ DragonBusUpd memoryAddress
+        newBusyCycles = case cachesHaveSharedCopies of
+            True    -> updateCycles -- the memory address exists in shared states in other caches, bus busy cycles set to updateCycles (forwarding a word)
+            False   -> 0 -- the memory address is not cached in other caches, bus busy cycles is 0 (instant bus operation)
+            where
+                cachesHaveSharedCopies = hasSharedCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles
 -- Final case: bus is not free
 acquire _ (CacheBus _ _ (Just _) _) = Nothing
+
+-- | Method for processors to issue another bus event on a currently acquired bus.
+--   Returns a new cache event bus.
+issue :: BusTr -> CacheBus -> CacheBus
+issue (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory (Just _) oldBusyCycles) = (CacheBus oldCaches oldMemory Nothing oldBusyCycles)
+issue _ (CacheBus _ _ _ _) = error "Issue of non-supported bus transaction or on an unacquired bus"
 
 recursivelyCheckCachesForState :: BlockState -> MemoryAddress -> [Cache] -> Bool
 recursivelyCheckCachesForState blockState memoryAddress [] = False
@@ -109,22 +130,28 @@ release :: CacheBus -> CacheBus
 release (CacheBus oldCaches oldMemory _ oldBusyCycles) = newCacheBus where
     newCacheBus = CacheBus oldCaches oldMemory Nothing oldBusyCycles
 
+hasCopies :: MemoryAddress -> CacheBus -> Bool
+hasCopies memoryAddress (CacheBus caches _ _ _) = hasS || hasSC || hasSM || hasE || hasM where
+    hasS = recursivelyCheckCachesForState S memoryAddress caches
+    hasSC = recursivelyCheckCachesForState SC memoryAddress caches
+    hasSM = recursivelyCheckCachesForState SM memoryAddress caches
+    hasE = recursivelyCheckCachesForState E memoryAddress caches
+    hasM = recursivelyCheckCachesForState M memoryAddress caches
+
 -- |Checks whether the specified memory address is shared by at least a cache.
 --  Returns True if it is shared, False otherwise.
-isShared :: MemoryAddress -> CacheBus -> Bool
-isShared memoryAddress (CacheBus caches _ _ _) = isSharedS || isSharedSC || isSharedSM where
-    isSharedS = recursivelyCheckCachesForState S memoryAddress caches
-    isSharedSC = recursivelyCheckCachesForState SC memoryAddress caches
-    isSharedSM = recursivelyCheckCachesForState SM memoryAddress caches
-    isSharedE = recursivelyCheckCachesForState E memoryAddress caches
-    isSharedM = recursivelyCheckCachesForState M memoryAddress caches
+hasSharedCopies :: MemoryAddress -> CacheBus -> Bool
+hasSharedCopies memoryAddress (CacheBus caches _ _ _) = hasS || hasSC || hasSM where
+    hasS = recursivelyCheckCachesForState S memoryAddress caches
+    hasSC = recursivelyCheckCachesForState SC memoryAddress caches
+    hasSM = recursivelyCheckCachesForState SM memoryAddress caches
 
 -- |Checks whether the specified memory address is cached in modified by at least a cache.
 --  Returns True if it is modified somewhere, False otherwise.
-isModified :: MemoryAddress -> CacheBus -> Bool
-isModified memoryAddress (CacheBus caches _ _ _) = isModifiedM || isModifiedSM where
-    isModifiedM = recursivelyCheckCachesForState M memoryAddress caches
-    isModifiedSM = recursivelyCheckCachesForState SM memoryAddress caches
+hasModifiedCopies :: MemoryAddress -> CacheBus -> Bool
+hasModifiedCopies memoryAddress (CacheBus caches _ _ _) = hasM || hasSM where
+    hasM = recursivelyCheckCachesForState M memoryAddress caches
+    hasSM = recursivelyCheckCachesForState SM memoryAddress caches
 
 -- |Elapses a single cycle from the bus memory and the bus itself.
 --  Returns the renewed cache bus.
