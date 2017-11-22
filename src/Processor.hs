@@ -10,7 +10,7 @@ import Definitions
 import Trace
 import Bus
 import Statistics
-import qualified Debug.Trace as T
+import qualified Debug.NoTrace as T
 import Cache (Cache)
 import qualified Cache as Cache
 import Protocols
@@ -18,6 +18,7 @@ import qualified MESIProtocol
 import Memory 
 import Protocol
 import qualified DragonProtocol
+import Data.Maybe (isNothing)
 
 type HasConsumedTrace = Bool
 
@@ -91,8 +92,21 @@ handleTrace (Processor pid MESI cache stats cycles pstate mem) trace eventBus = 
     elapsedMemory = Memory.elapse newMemory
     -- Update internal state and return values
     hasConsumedTrace = isDone newPState
+
+    -- Update statistics: 
+    -- IF we receive a LOAD or STORE and we are in a NOTHING stage we must have 
+    -- received a new load/store instruction. Update our statistics
+    statsWithLoadStore = if isNothing pstate then addOneStatsLoadStoreCycle stats else stats
+    -- If we in in this state, we MUST be idling waiting for cache
+    statsWithIdleCycle = addOneStatsIdleCycle statsWithLoadStore
+    -- If our state is nothing, check with the cache if we have missed 
+    statsWithMissRate  = if isNothing pstate then 
+            case Cache.busGetBlockState address cache of 
+                Nothing -> addOneStatsMissCount statsWithIdleCycle
+                _ -> statsWithIdleCycle
+            else statsWithIdleCycle
     finalpstate = if hasConsumedTrace then Nothing else Just $ MESIProtocol newPState 
-    newProcessor  = Processor pid MESI elapsedCache stats cycles finalpstate elapsedMemory
+    newProcessor  = Processor pid MESI elapsedCache statsWithMissRate cycles finalpstate elapsedMemory
 
 -- | If it's any other instruction, choose which protocol should execute it and run the load/store fx
 handleTrace (Processor pid Dragon cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
@@ -113,8 +127,21 @@ handleTrace (Processor pid Dragon cache stats cycles pstate mem) trace eventBus 
     elapsedMemory = Memory.elapse newMemory
     -- Update internal state and return values
     hasConsumedTrace = isDone newPState
+
+    -- Update statistics: 
+    -- IF we receive a LOAD or STORE and we are in a NOTHING stage we must have 
+    -- received a new load/store instruction. Update our statistics
+    statsWithLoadStore = if isNothing pstate then addOneStatsLoadStoreCycle stats else stats
+    -- If we in in this state, we MUST be idling waiting for cache
+    statsWithIdleCycle = addOneStatsIdleCycle statsWithLoadStore
+    -- If our state is nothing, check with the cache if we have missed 
+    statsWithMissRate  = if isNothing pstate then 
+            case Cache.busGetBlockState address cache of 
+                Nothing -> addOneStatsMissCount statsWithIdleCycle
+                _ -> statsWithIdleCycle
+            else statsWithIdleCycle
     finalpstate = if hasConsumedTrace then Nothing else Just $ DragonProtocol newPState 
-    newProcessor  = Processor pid Dragon elapsedCache stats cycles finalpstate elapsedMemory
+    newProcessor  = Processor pid Dragon elapsedCache statsWithMissRate cycles finalpstate elapsedMemory
 
 -- | Runs one compute cycle from the number of cycles left to do computation
 processOneComputeCycle :: Processor -> (Processor, Bool)
@@ -124,3 +151,12 @@ processOneComputeCycle (Processor pid protocol cache stats cycles pstate mem) = 
 
 addOneStatsComputeCycle :: ProcessorStatistics -> ProcessorStatistics
 addOneStatsComputeCycle (ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics (compute + 1) loadstore idle misscount pid
+
+addOneStatsLoadStoreCycle :: ProcessorStatistics -> ProcessorStatistics
+addOneStatsLoadStoreCycle (ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute (loadstore + 1) idle misscount pid
+
+addOneStatsIdleCycle :: ProcessorStatistics -> ProcessorStatistics
+addOneStatsIdleCycle (ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute loadstore (idle + 1) misscount pid
+
+addOneStatsMissCount :: ProcessorStatistics -> ProcessorStatistics
+addOneStatsMissCount (ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute loadstore idle (misscount + 1) pid
