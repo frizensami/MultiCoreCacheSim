@@ -5,7 +5,6 @@ import qualified Bus
 import Cache (Cache)
 import qualified Cache
 import CacheBlock (BlockState (..))
-import Data.Maybe
 import Definitions
 import Memory (Memory)
 import qualified Memory
@@ -32,16 +31,16 @@ load Nothing memoryAddress cache memory cacheBus pid = (newIllinoisState, newCac
 load (Just IllinoisWaitCacheRead) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
-    maybeAcquiredCacheBus = case cacheHit of
-        Just True   -> Nothing -- Cache hit, no need to issue bus transaction
-        Just False  -> Bus.acquire (IllinoisBusRd memoryAddress) cacheBus -- Cache miss, try to issue a bus transaction through acquire
-        Nothing     -> Nothing -- Cache read not finished yet, no need to issue bus transaction on this cycle
+    (isBusAcquired, cacheBusAfterAcquire) = case cacheHit of
+        Just True   -> (False, cacheBus) -- Cache hit, no need to issue bus transaction
+        Just False  -> Bus.acquire (IllinoisBusRd memoryAddress) cacheBus pid -- Cache miss, try to issue a bus transaction through acquire
+        Nothing     -> (False, cacheBus) -- Cache read not finished yet, no need to issue bus transaction on this cycle
 
     newIllinoisState = case cacheHit of
         Just True   -> IllinoisDone -- Cache hit, load operation is done
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on the bus state after acquire attempt
-            Nothing                 -> IllinoisWaitCacheRead -- Bus can't be acquired, keep trying to acquire on WaitCacheRead state
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
+        Just False  -> case isBusAcquired of -- Cache miss, next state depends on the bus state after acquire attempt
+            False   -> IllinoisWaitCacheRead -- Bus can't be acquired, keep trying to acquire on WaitCacheRead state
+            True    -> case Bus.isBusy cacheBusAfterAcquire of
                 True    -> IllinoisWaitBusTr -- Bus is busy, wait for bus transaction to finish
                 False   -> IllinoisWaitMemoryRead -- Bus transaction is instant, do a memory read and go to memory read state
         Nothing     -> IllinoisWaitCacheRead -- Cache read not finished yet, wait until it is finished
@@ -53,14 +52,14 @@ load (Just IllinoisWaitCacheRead) memoryAddress cache memory cacheBus pid = (new
 
     newMemory = case cacheHit of
         Just True   -> memory -- Cache hit, no memory operation needed
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, memory might be modified depending on the bus state after acquire attempt
-            Nothing                 -> memory -- Bus can't be acquired, no memory modification while trying to acquire bus
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, memory might be modified depending on whether bus transaction is instant
+        Just False  -> case isBusAcquired of -- Cache miss, memory might be modified depending on the bus state after acquire attempt
+            False   -> memory -- Bus can't be acquired, no memory modification while trying to acquire bus
+            True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, memory might be modified depending on whether bus transaction is instant
                 True    -> memory -- Bus is busy, no memory modification until bus transaction is finished
                 False   -> Memory.issueRead memory -- Bus transaction is instant, do a memory read
         Nothing     -> memory -- Cache read not finished yet, no memory operation needed
 
-    newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Returns the acquired cache bus if the bus is acquired
+    newCacheBus = cacheBusAfterAcquire -- Returns the acquired cache bus if the bus is acquired
 
 -- Load on WaitBusTr, this state could only be reached if the bus transaction issued was not instant (a cache has the address cached on M state, for example).
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on the bus state.
@@ -146,30 +145,30 @@ store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus pid = (n
     cacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
-    maybeAcquiredCacheBus = case cacheHit of
+    (isBusAcquired, cacheBusAfterAcquire) = case cacheHit of
         Just True   -> case blockState of -- Cache hit, bus transaction might be issued depending on the block state
-            Just M      -> Nothing -- Cache hit on M state, no need to acquire the bus
-            Just E      -> Nothing -- Cache hit on E state, no need to acquire the bus
-            Just S      -> Bus.acquire (IllinoisBusUpg memoryAddress) cacheBus -- Cache hit on S state, issue a IllinoisBusUpg transaction to invalidate other copies
-            _           -> Bus.acquire (IllinoisBusRdX memoryAddress) cacheBus -- Cache hit on I state, block changed through bus by other protocol -> IllinoisBusRdX
-        Just False  -> Bus.acquire (IllinoisBusRdX memoryAddress) cacheBus -- Cache miss, issue a IllinoisBusRdX transaction to invalidate other copies and read from memory
-        Nothing     -> Nothing -- Cache write has not completed, no need to acquire the bus on this cycle
+            Just M      -> (False, cacheBus) -- Cache hit on M state, no need to acquire the bus
+            Just E      -> (False, cacheBus) -- Cache hit on E state, no need to acquire the bus
+            Just S      -> Bus.acquire (IllinoisBusUpg memoryAddress) cacheBus pid -- Cache hit on S state, issue a IllinoisBusUpg transaction to invalidate other copies
+            _           -> Bus.acquire (IllinoisBusRdX memoryAddress) cacheBus pid -- Cache hit on I state, block changed through bus by other protocol -> IllinoisBusRdX
+        Just False  -> Bus.acquire (IllinoisBusRdX memoryAddress) cacheBus pid -- Cache miss, issue a IllinoisBusRdX transaction to invalidate other copies and read from memory
+        Nothing     -> (False, cacheBus) -- Cache write has not completed, no need to acquire the bus on this cycle
 
     newIllinoisState = case cacheHit of
         Just True   -> case blockState of -- Cache hit, next state depends on the block state
             Just M      -> IllinoisDone -- Cache hit on M state, immediately go to Done state
             Just E      -> IllinoisDone -- Cache hit on E state, immediately go to Done state
-            Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, next state depends on whether bus is acquired
-                Nothing                 -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
-                Just acquiredCacheBus   -> IllinoisDone -- Bus acquired, invalidation is instant, go to Done state
-            _           -> case maybeAcquiredCacheBus of -- Cache hit on I state, block changed through bus, next state depends on whether the bus is acquired
-                Nothing                 -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
+            Just S      -> case isBusAcquired of -- Cache hit on S state, next state depends on whether bus is acquired
+                False   -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
+                True    -> IllinoisDone -- Bus acquired, invalidation is instant, go to Done state
+            _           -> case isBusAcquired of -- Cache hit on I state, block changed through bus, next state depends on whether the bus is acquired
+                False   -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on WaitCacheWrite state
+                True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, next state depends on whether bus transaction is instant
                     True    -> IllinoisWaitBusTr -- Bus is busy (transaction not instant), go to WaitBusTr state 
                     False   -> IllinoisWaitMemoryRead -- Bus transaction is instant, issue memory read and go to WaitMemoryRead state
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether bus is acquired
-            Nothing                 -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on IssueBusTr state
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether bus transaction is instant
+        Just False  -> case isBusAcquired of -- Cache miss, next state depends on whether bus is acquired
+            False   -> IllinoisWaitCacheWrite -- Bus not acquired, keep trying to acquire on IssueBusTr state
+            True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, next state depends on whether bus transaction is instant
                 True    -> IllinoisWaitBusTr -- Bus is busy (transaction not instant), go to WaitBusTr state
                 False   -> IllinoisWaitMemoryRead -- Bus transaction is instant, issue memory read and go to WaitMemoryRead state
         Nothing     -> IllinoisWaitCacheWrite
@@ -178,18 +177,18 @@ store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus pid = (n
         Just True   -> case blockState of
             Just M      -> Cache.commitWrite memoryAddress cache -- Cache hit on M block, commit write
             Just E      -> Cache.commitWrite memoryAddress cache -- Cache hit on E block, commit write
-            Just S      -> case maybeAcquiredCacheBus of
-                Nothing                 -> cache -- Bus can't be acquired, do not commit write on this cycle to maintain original cache state
-                Just acquiredCacheBus   -> Cache.commitWrite memoryAddress cache -- Bus acquired, commit write is now allowed
+            Just S      -> case isBusAcquired of
+                False   -> cache -- Bus can't be acquired, do not commit write on this cycle to maintain original cache state
+                True    -> Cache.commitWrite memoryAddress cache -- Bus acquired, commit write is now allowed
             _           -> cache -- Cache hit on I state, block changed through bus, no changes to cache
         Just False  -> cache -- Cache miss, no changes to cache
         Nothing     -> cache -- Cache is still busy, no changes to cache
 
     newMemory = case cacheHit of
         Just True   -> memory -- Cache hit, no memory operation needed
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, might issue a memory read depending on the bus state after acquire attempt
-            Nothing                 -> memory -- Bus can't be acquired, no memory operation issued while trying to acquire bus
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, memory might be modified depending on whether bus transaction is instant
+        Just False  -> case isBusAcquired of -- Cache miss, might issue a memory read depending on the bus state after acquire attempt
+            False   -> memory -- Bus can't be acquired, no memory operation issued while trying to acquire bus
+            True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, memory might be modified depending on whether bus transaction is instant
                 True    -> memory -- Bus is busy, no memory operation issued until bus transaction is finished
                 False   -> Memory.issueRead memory -- Bus transaction is instant, issue a memory read
         Nothing     -> memory -- Cache read not finished yet, no memory operation needed
@@ -198,11 +197,11 @@ store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus pid = (n
         Just True   -> case blockState of
             Just M      -> cacheBus -- Cache hit on M state, no bus transaction generated, return the same bus
             Just E      -> cacheBus -- Cache hit on E state, no bus transaction generated, return the same bus
-            Just S      -> case maybeAcquiredCacheBus of -- Cache hit on S state, new bus depends on whether the bus is acquired successfully
-                Nothing                 -> cacheBus -- Bus has not been acquired, return the same bus
-                Just acquiredCacheBus   -> Bus.release acquiredCacheBus -- Bus has been acquired, will not be busy (only invalidate), release acquired bus
-            _           -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache hit on I state, block changed through bus, returns the acquired cache bus if any
-        Just False  -> fromMaybe cacheBus maybeAcquiredCacheBus -- Cache miss, returns the acquired cache bus if the bus is acquired
+            Just S      -> case isBusAcquired of -- Cache hit on S state, new bus depends on whether the bus is acquired successfully
+                False   -> cacheBus -- Bus has not been acquired, return the same bus
+                True    -> Bus.release cacheBusAfterAcquire -- Bus has been acquired, will not be busy (only invalidate), release acquired bus
+            _           -> cacheBusAfterAcquire -- Cache hit on I state, block changed through bus, returns the acquired cache bus if any
+        Just False  -> cacheBusAfterAcquire -- Cache miss, returns the acquired cache bus if the bus is acquired
         Nothing     -> cacheBus -- Cache read not finished yet, no change to cache bus
 
 -- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.

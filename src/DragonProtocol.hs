@@ -5,7 +5,6 @@ import qualified Bus
 import Cache (Cache)
 import qualified Cache
 import CacheBlock (BlockState (..))
-import Data.Maybe
 import Definitions
 import Memory (Memory)
 import qualified Memory
@@ -28,16 +27,16 @@ load Nothing memoryAddress cache memory cacheBus pid = (newDragonState, newCache
 load (Just DragonWaitCacheRead) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
-    maybeAcquiredCacheBus = case cacheHit of
-        Just True   -> Nothing -- Cache hit, no need to issue bus transaction
-        Just False  -> Bus.acquire (DragonBusRd memoryAddress) cacheBus -- Cache miss, try to acquire bus
-        Nothing     -> Nothing -- Cache is still busy, no need to issue bus transaction on this cycle
+    (isBusAcquired, cacheBusAfterAcquire) = case cacheHit of
+        Just True   -> (False, cacheBus) -- Cache hit, no need to issue bus transaction
+        Just False  -> Bus.acquire (DragonBusRd memoryAddress) cacheBus pid -- Cache miss, try to acquire bus
+        Nothing     -> (False, cacheBus) -- Cache is still busy, no need to issue bus transaction on this cycle
 
     newDragonState = case cacheHit of
         Just True   -> DragonDone -- Cache hit, go to Done state
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether the bus is acquired
-            Nothing                 -> DragonWaitCacheRead -- Bus not acquired, keep trying to acquire on WaitCacheRead state
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, next state depends on whether the bus is now busy
+        Just False  -> case isBusAcquired of -- Cache miss, next state depends on whether the bus is acquired
+            False   -> DragonWaitCacheRead -- Bus not acquired, keep trying to acquire on WaitCacheRead state
+            True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, next state depends on whether the bus is now busy
                 True    -> DragonWaitBusTr -- Bus is now busy, wait for it on WaitBusTr state
                 False   -> DragonWaitMemoryRead -- Instant bus transaction (no one has a copy), immediately issue a memory read and go to WaitMemoryRead
         Nothing     -> DragonWaitCacheRead -- Cache is still busy, wait for it in WaitCacheRead state
@@ -49,14 +48,14 @@ load (Just DragonWaitCacheRead) memoryAddress cache memory cacheBus pid = (newDr
 
     newMemory = case cacheHit of
         Just True   -> memory -- Cache hit, no memory operation issued
-        Just False  -> case maybeAcquiredCacheBus of
-            Nothing                 -> memory -- Bus not acquired, keep trying to acquire bus, no memory operation issued
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
+        Just False  -> case isBusAcquired of
+            False   -> memory -- Bus not acquired, keep trying to acquire bus, no memory operation issued
+            True    -> case Bus.isBusy cacheBusAfterAcquire of
                 True    -> memory -- Bus is busy, no memory opereation issued on this cycle
                 False   -> Memory.issueRead memory -- Bus is not busy (no one has copy), immediately issue a memory read
         Nothing     -> memory -- Cache is still busy, no memory operation issued on this cycle
 
-    newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Return the acquired cache bus if it is acquired
+    newCacheBus = cacheBusAfterAcquire
 
 load (Just DragonWaitBusTr) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     isBusBusy = Bus.isBusy cacheBus
@@ -138,34 +137,34 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus pid = (new
     isCacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
-    maybeAcquiredCacheBus = case isCacheHit of
+    (isBusAcquired, cacheBusAfterAcquire) = case isCacheHit of
         Just True   -> case blockState of -- Cache hit, might need to acquire cache bus depending on the block state
-            Just M  -> Nothing -- Cache hit on M state, no need to acquire cache bus
-            Just E  -> Nothing -- Cache hit on E state, no need to acquire cache bus
-            Just SM -> Bus.acquire (DragonBusUpd memoryAddress) cacheBus -- Cache hit on SM state, issue BusUpd
-            Just SC -> Bus.acquire (DragonBusUpd memoryAddress) cacheBus -- Cache hit on SC state, issue BusUpd
+            Just M  -> (False, cacheBus) -- Cache hit on M state, no need to acquire cache bus
+            Just E  -> (False, cacheBus) -- Cache hit on E state, no need to acquire cache bus
+            Just SM -> Bus.acquire (DragonBusUpd memoryAddress) cacheBus pid -- Cache hit on SM state, issue BusUpd
+            Just SC -> Bus.acquire (DragonBusUpd memoryAddress) cacheBus pid -- Cache hit on SC state, issue BusUpd
             _       -> error "Cache hit on I state in Dragon Protocol"
-        Just False  -> Bus.acquire (DragonBusRd memoryAddress) cacheBus -- Cache miss, issue BusRdUpd
-        Nothing     -> Nothing -- Cache is still busy, wait for it in WaitCacheWrite state
+        Just False  -> Bus.acquire (DragonBusRd memoryAddress) cacheBus pid -- Cache miss, issue BusRdUpd
+        Nothing     -> (False, cacheBus) -- Cache is still busy, wait for it in WaitCacheWrite state
 
     newDragonState = case isCacheHit of
         Just True   -> case blockState of -- Cache hit, next state depends on the block state and whether bus was acquired
             Just M  -> DragonDone -- Cache hit on M state, go to Done state as no more operations need to be done
             Just E  -> DragonDone -- Cache hit on E state, go to Done state as no more operations need to be done
-            Just SM -> case maybeAcquiredCacheBus of
-                Nothing                 -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
+            Just SM -> case isBusAcquired of
+                False   -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
+                True    -> case Bus.isBusy cacheBusAfterAcquire of
                     True    -> DragonWaitBusTr -- Bus is busy (line is shared, needs to update other copies), wait for it in WaitBusTr state
                     False   -> DragonDone -- Bus is not busy (line is not shared), go to Done state as no more operations need to be done
-            Just SC -> case maybeAcquiredCacheBus of
-                Nothing                 -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
+            Just SC -> case isBusAcquired of
+                False   -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
+                True    -> case Bus.isBusy cacheBusAfterAcquire of
                     True    -> DragonWaitBusTr -- Bus is busy (line is shared, needs to update other copies), wait for it in WaitBusTr state
                     False   -> DragonDone -- Bus is not busy (line is not shared), go to Done state as no more operations need to be done
             _       -> error "Cache hit on I state in Dragon Protocol"
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, next state depends on whether bus was acquired and bus busy state
-            Nothing                 -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of
+        Just False  -> case isBusAcquired of -- Cache miss, next state depends on whether bus was acquired and bus busy state
+            False   -> DragonWaitCacheWrite -- Bus can't be acquired, keep trying to acquire on WaitCacheWrite state
+            True    -> case Bus.isBusy cacheBusAfterAcquire of
                 True    -> DragonWaitBusTr -- Bus is busy (line is shared, needs to wait for a copy from others), wait for it in WaitBusTr state
                 False   -> DragonWaitMemoryRead -- Bus is not busy (line is not shared), issue a memory read and go to WaitMemoryRead state
         Nothing     -> DragonWaitCacheWrite -- Cache is still busy, wait for it in WaitCacheWrite state
@@ -174,16 +173,16 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus pid = (new
         Just True   -> case blockState of -- Cache hit, commit write might need to be done depending on the block state
             Just M  -> Cache.commitWrite memoryAddress cache -- Cache hit on M state, commit write
             Just E  -> Cache.commitWrite memoryAddress cache -- Cache hit on E state, commit write
-            Just SM -> case maybeAcquiredCacheBus of -- Cache hit on SM state, commit write might need to be done depending on whether the bus is acquired
-                Nothing                 -> cache -- Bus can't be acquired, do not commit write on this cycle
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, commit write and change to SM state if shared
+            Just SM -> case isBusAcquired of -- Cache hit on SM state, commit write might need to be done depending on whether the bus is acquired
+                False   -> cache -- Bus can't be acquired, do not commit write on this cycle
+                True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, commit write and change to SM state if shared
                     True    -> Cache.busSetBlockState SM memoryAddress writeCommittedCache -- Bus is busy (updating to shared copies), change to SM state
                     False   -> writeCommittedCache -- Bus is not busy (no shared copies), keep in M state
                     where
                         writeCommittedCache = Cache.commitWrite memoryAddress cache
-            Just SC -> case maybeAcquiredCacheBus of -- Cache hit on SC state, commit write might need to be done depending on whether the bus is acquired
-                Nothing                 -> cache -- Bus can't be acquired, do not commit write on this cycle
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, commit write and change to SM state if shared
+            Just SC -> case isBusAcquired of -- Cache hit on SC state, commit write might need to be done depending on whether the bus is acquired
+                False   -> cache -- Bus can't be acquired, do not commit write on this cycle
+                True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, commit write and change to SM state if shared
                     True    -> Cache.busSetBlockState SM memoryAddress writeCommittedCache -- Bus is busy (updating to shared copies), change to SM state
                     False   -> writeCommittedCache -- Bus is not busy (no shared copies), keep in M state
                     where
@@ -194,9 +193,9 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus pid = (new
 
     newMemory = case isCacheHit of
         Just True   -> memory -- Cache hit, no memory operations required
-        Just False  -> case maybeAcquiredCacheBus of -- Cache miss, memory read might need to be issued depending on whether bus was acquired and bus busy state
-            Nothing                 -> memory -- Bus can't be acquired, no need to issue memory read on this cycle
-            Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, might need to issue memory read depending on bus busy state
+        Just False  -> case isBusAcquired of -- Cache miss, memory read might need to be issued depending on whether bus was acquired and bus busy state
+            False   -> memory -- Bus can't be acquired, no need to issue memory read on this cycle
+            True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, might need to issue memory read depending on bus busy state
                 True    -> memory -- Bus is busy (line is shared, waiting for copy from others), no memory read needs to be issued
                 False   -> Memory.issueRead memory -- Bus is not busy (line is not shared), need to issue a memory read to get data
         Nothing     -> memory -- Cache is still busy, no need to issue memory read on this cycle
@@ -205,20 +204,20 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus pid = (new
         Just True   -> case blockState of
             Just M  -> cacheBus -- Cache hit on M state, no bus transaction generated, return the same bus
             Just E  -> cacheBus -- Cache hit on E state, no bus transaction generated, return the same bus
-            Just SM -> case maybeAcquiredCacheBus of
-                Nothing                 -> cacheBus -- Bus can't be acquired, no changes to cache bus
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, need to return acquired/released bus depending on bus busy state
-                    True    -> acquiredCacheBus -- Bus is busy (need to update other copies), return the acquired cache bus
-                    False   -> Bus.release acquiredCacheBus -- Bus is not busy (no need to update other copies), Done state reached, release bus
-            Just SC -> case maybeAcquiredCacheBus of
-                Nothing                 -> cacheBus
-                Just acquiredCacheBus   -> case Bus.isBusy acquiredCacheBus of -- Bus acquired, need to return acquired/released bus depending on bus busy state
-                    True    -> acquiredCacheBus -- Bus is busy (need to update other copies), return the acquired cache bus
-                    False   -> Bus.release acquiredCacheBus -- Bus is not busy (no need to update other copies), Done state reached, release bus
+            Just SM -> case isBusAcquired of
+                False   -> cacheBus -- Bus can't be acquired, no changes to cache bus
+                True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, need to return acquired/released bus depending on bus busy state
+                    True    -> cacheBusAfterAcquire -- Bus is busy (need to update other copies), return the acquired cache bus
+                    False   -> Bus.release cacheBusAfterAcquire -- Bus is not busy (no need to update other copies), Done state reached, release bus
+            Just SC -> case isBusAcquired of
+                False   -> cacheBus
+                True    -> case Bus.isBusy cacheBusAfterAcquire of -- Bus acquired, need to return acquired/released bus depending on bus busy state
+                    True    -> cacheBusAfterAcquire -- Bus is busy (need to update other copies), return the acquired cache bus
+                    False   -> Bus.release cacheBusAfterAcquire -- Bus is not busy (no need to update other copies), Done state reached, release bus
             _       -> error "Cache hit on I state in Dragon Protocol"
-        Just False  -> case maybeAcquiredCacheBus of
-            Nothing                 -> cacheBus -- Bus can't be acquired, no changes to cache bus
-            Just acquiredCacheBus   -> acquiredCacheBus -- Bus acquired, return the acquired bus
+        Just False  -> case isBusAcquired of
+            False   -> cacheBus -- Bus can't be acquired, no changes to cache bus
+            True    -> cacheBusAfterAcquire -- Bus acquired, return the acquired bus
         Nothing     -> cacheBus -- Cache is still busy, no changes to cache bus on this cycle
 
 store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, memory, newCacheBus) where
