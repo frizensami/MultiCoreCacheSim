@@ -27,7 +27,8 @@ getBusStats (CacheBus _ _ _ _ busStatistics) = busStatistics
 -- 1. Can be treated as the same type in some circumstances but 
 -- 2. Separate when putting into a list - aka a list can only have one of these typs (MESI or Dragon events)
 data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | MESIBusUpg MemoryAddress
-    | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress deriving (Show)
+    | DragonBusRd MemoryAddress | DragonBusUpd MemoryAddress
+    | IllinoisBusRd MemoryAddress | IllinoisBusRdX MemoryAddress | IllinoisBusUpg MemoryAddress deriving (Show)
 
 -- | Creating brand new cache event bus - likely to be only called once then updated with recreate method
 create :: [Cache] -> Memory -> CacheBus
@@ -119,6 +120,54 @@ acquire (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBu
             True    -> addBusTrafficStats 4 $ incrementBusIvUpdStats oldBusStatistics -- exists in shared states in other caches, need to update
             False   -> oldBusStatistics -- doesnt exist in other caches, no need to update
         cachesHaveSharedCopies = hasSharedCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics
+acquire (IllinoisBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics) = Just newCacheBus where
+    newCacheBus = CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics where
+        -- Change all M/E states to S state
+        newCaches = recursivelyUpdateBlockState M S memoryAddress
+            $ recursivelyUpdateBlockState E S memoryAddress oldCaches
+        newMemory = case cachesHaveMState of
+            True    -> Memory.issueWrite oldMemory -- a write-back to memory is required, issue a memory write to make bus busy
+            False   -> oldMemory
+        newMaybeBusTr = Just $ IllinoisBusRd memoryAddress
+        newBusyCycles = case cachesHaveCopies of
+            True    -> updateCycles * wordsPerBlock
+            False   -> 0
+            where
+                wordsPerBlock = blockSize `div` 4
+        newBusStatistics = case cachesHaveCopies of
+            True    -> addBusTrafficStats blockSize oldBusStatistics
+            False   -> oldBusStatistics
+        cachesHaveMState = recursivelyCheckCachesForState M memoryAddress oldCaches
+        cachesHaveCopies = hasCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics
+        blockSize = CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0
+acquire (IllinoisBusRdX memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics) = Just newCacheBus where
+    newCacheBus = CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics where
+        -- Change all M/E/S states to I state
+        newCaches = recursivelyUpdateBlockState M I memoryAddress
+            $ recursivelyUpdateBlockState E I memoryAddress
+            $ recursivelyUpdateBlockState S I memoryAddress oldCaches
+        newMemory = case cachesHaveMState of
+            True    -> Memory.issueWrite oldMemory -- a write-back to memory is required, issue a memory write to make bus busy
+            False   -> oldMemory
+        newMaybeBusTr = Just $ IllinoisBusRdX memoryAddress
+        newBusyCycles = case cachesHaveCopies of
+            True    -> updateCycles * wordsPerBlock
+            False   -> 0
+            where
+                wordsPerBlock = blockSize `div` 4
+        newBusStatistics = case cachesHaveCopies of
+            True    -> addBusTrafficStats blockSize $ incrementBusIvUpdStats oldBusStatistics
+            False   -> incrementBusIvUpdStats oldBusStatistics
+        cachesHaveMState = recursivelyCheckCachesForState M memoryAddress oldCaches
+        cachesHaveCopies = hasCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics
+        blockSize = CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0
+acquire (IllinoisBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing _ oldBusStatistics) = Just newCacheBus where
+    newCacheBus = CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics where
+        -- Change all S states to I state
+        newCaches = recursivelyUpdateBlockState S I memoryAddress oldCaches
+        newMaybeBusTr = Just $ IllinoisBusUpg memoryAddress
+        newBusyCycles = 0
+        newBusStatistics = incrementBusIvUpdStats oldBusStatistics
 -- Final case: bus is not free
 acquire _ (CacheBus _ _ (Just _) _ _) = Nothing
 
