@@ -135,7 +135,7 @@ acquire (IllinoisBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldB
             where
                 wordsPerBlock = blockSize `div` 4
         newBusStatistics = case cachesHaveCopies of
-            True    -> addBusTrafficStats blockSize oldBusStatistics
+            True    -> (incrementBusIvUpdStats . addBusTrafficStats blockSize) oldBusStatistics
             False   -> oldBusStatistics
         cachesHaveMState = recursivelyCheckCachesForState M memoryAddress oldCaches
         cachesHaveCopies = hasCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics
