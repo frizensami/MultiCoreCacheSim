@@ -57,27 +57,26 @@ instance Show BusStatistics where
         "Private Data Accesses: " ++ (show private) ++ "\n" ++ 
         "Public Data Accesses: " ++ (show public) ++ "\n"
 
+newBusStatistics :: BusStatistics
+newBusStatistics = BusStatistics 0 0 0 0
 
-addBusTrafficStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
-addBusTrafficStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics (traffic + toAdd) ivupd private public
+addBusTrafficStats :: BusTrafficBytes -> BusStatistics -> BusStatistics
+addBusTrafficStats toAdd (BusStatistics traffic ivupd private public) = BusStatistics (traffic + toAdd) ivupd private public
 
-addBusIvUpdStats :: BusStatistics -> BusTrafficBytes -> BusStatistics
-addBusIvUpdStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic (ivupd + toAdd) private public
+addBusIvUpdStats :: BusTrafficBytes -> BusStatistics -> BusStatistics
+addBusIvUpdStats toAdd (BusStatistics traffic ivupd private public) = BusStatistics traffic (ivupd + toAdd) private public
 
-addBusPrivateAccessStats :: BusStatistics -> PrivateDataAccesses -> BusStatistics
-addBusPrivateAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd (private + toAdd) public
+addBusPrivateAccessStats :: PrivateDataAccesses -> BusStatistics -> BusStatistics
+addBusPrivateAccessStats toAdd (BusStatistics traffic ivupd private public) = BusStatistics traffic ivupd (private + toAdd) public
 
-addBusPublicAccessStats :: BusStatistics -> PublicDataAccesses -> BusStatistics
-addBusPublicAccessStats (BusStatistics traffic ivupd private public) toAdd = BusStatistics traffic ivupd private (public + toAdd)
+addBusPublicAccessStats :: PublicDataAccesses -> BusStatistics -> BusStatistics
+addBusPublicAccessStats toAdd (BusStatistics traffic ivupd private public) = BusStatistics traffic ivupd private (public + toAdd)
 
 incrementBusPrivateAccessStats :: BusStatistics -> BusStatistics
-incrementBusPrivateAccessStats stats = addBusPrivateAccessStats stats 1
+incrementBusPrivateAccessStats stats = addBusPrivateAccessStats 1 stats
 
 incrementBusPublicAccessStats :: BusStatistics -> BusStatistics
-incrementBusPublicAccessStats  stats = addBusPublicAccessStats  stats 1
+incrementBusPublicAccessStats  stats = addBusPublicAccessStats 1 stats
 
 incrementBusIvUpdStats :: BusStatistics -> BusStatistics
-incrementBusIvUpdStats  stats = addBusIvUpdStats stats 1
-
-
-
+incrementBusIvUpdStats  stats = addBusIvUpdStats 1 stats
