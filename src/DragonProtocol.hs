@@ -280,8 +280,7 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just E  -> error "BusUpd/BusRd on E state in Dragon Protocol"
             Just SM -> (Nothing, cache) -- Address is already cached, no need to allocate
             Just SC -> (Nothing, cache) -- Address is already cached, no need to allocate
-            Just I  -> Cache.busAllocate SC memoryAddress cache -- Address is not cached yet, allocate to cache in SC state (comes from Bus -> shared)
-            _       -> error "Unknown block state in Dragon Protocol"
+            _       -> Cache.busAllocate SC memoryAddress cache -- Address is not cached yet, allocate to cache in SC state (comes from Bus -> shared)
 
     newDragonState = case isBusBusy of
         True    -> DragonWaitBusTr -- Bus is still busy, wait for it on WaitBusTr state
@@ -290,10 +289,9 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just E  -> error "BusUpd/BusRd on E state in Dragon Protocol"
             Just SM -> DragonDone -- Address is cached, go to Done state as BusUpd operation is finished
             Just SC -> DragonDone -- Address is cached, go to Done state as BusUpd operation is finished
-            Just I  -> case maybeEvictedBlockState of -- Address is not cached, the next state depends on whether an M block was evicted during allocation
+            _       -> case maybeEvictedBlockState of -- Address is not cached, the next state depends on whether an M block was evicted during allocation
                 Just M  -> DragonWaitMemoryWrite -- An M block was evicted during allocation, issue a memory write and go to WaitMemoryWrite state
                 _       -> DragonWaitCacheRewrite -- No M block was evicted during allocation, issue a cache rewrite and go to WaitCacheRewrite state
-            _       -> error "Unknown block state in Dragon Protocol"
 
     newCache = case isBusBusy of
         True    -> cache -- Bus is still busy, no changes to cache
@@ -302,10 +300,9 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just E  -> error "BusUpd/BusRd on E state in Dragon Protocol"
             Just SM -> cache -- Allocation was not done, no changes to cache
             Just SC -> cache -- Allocation was not done, no changes to cache
-            Just I  -> case maybeEvictedBlockState of -- Allocation was done, cache write might need to be issued depending on whether an M block was evicted
+            _       -> case maybeEvictedBlockState of -- Allocation was done, cache write might need to be issued depending on whether an M block was evicted
                 Just M  -> cacheAfterAllocate -- An M block was evicted during allocation, a memory write still needs to be done, no cache write issued yet
                 _       -> Cache.issueWrite memoryAddress cacheAfterAllocate -- No M block evicted during allocation, issue a cache write
-            _       -> error "Unknown block state in Dragon Protocol"
 
     newMemory = case isBusBusy of
         True    -> memory
@@ -314,10 +311,9 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just E  -> error "BusUpd/BusRd on E state in Dragon Protocol"
             Just SM -> memory -- Address is already cached, no allocation done
             Just SC -> memory -- Address is already cached, no allocation done
-            Just I  -> case maybeEvictedBlockState of -- Address is not cached, might need to issue memory write if an M block was evicted
+            _       -> case maybeEvictedBlockState of -- Address is not cached, might need to issue memory write if an M block was evicted
                 Just M  -> Memory.issueWrite memory -- An M block was evicted during allocation, issue a memory write
                 _       -> memory -- No M block was evicted during allocation, no need to issue a memory write
-            _       -> error "Unknown block state in Dragon Protocol"
 
     newCacheBus = case isBusBusy of
         True    -> cacheBus -- Bus is still busy, no changes to bus
@@ -326,8 +322,7 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just E  -> error "BusUpd/BusRd on E state in Dragon Protocol"
             Just SM -> Bus.release cacheBus -- Address is cached, BusUpd operation is finished, Done state reached, release bus
             Just SC -> Bus.release cacheBus -- Address is cached, BusUpd operation is finished, Done state reached, release bus
-            Just I  -> cacheBus -- Do not release bus yet as Bus.issue is needed in cache rewrite stage
-            x       -> error $ "Unknown block state in Dragon Protocol = " ++ show x
+            _       -> cacheBus -- Do not release bus yet as Bus.issue is needed in cache rewrite stage
 
 store (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
