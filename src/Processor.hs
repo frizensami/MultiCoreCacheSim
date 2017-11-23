@@ -79,36 +79,36 @@ handleTrace (Processor pid protocol cache stats _ pstate mem) trace@(OtherInstru
 handleTrace (Processor pid MESI cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
     -- Run the protocol function and update internal state
     -- Select which protocol function to execute
-    (protocolFunction, address) = case trace of
+    !(protocolFunction, address) = case trace of
         LoadInstruction  addr     -> (MESIProtocol.load,  addr)
         StoreInstruction addr     -> (MESIProtocol.store, addr)
         t                         -> error "Not expecing OtherInstruction inside handleTrace!"
     -- Run the protocol function and update internal state
-    (newPState, newCache, newMemory, newBus) = case pstate of
-        Nothing                       -> protocolFunction Nothing address cache mem eventBus
-        Just (MESIProtocol mesiState) -> protocolFunction (Just mesiState) address cache mem eventBus
+    !(newPState, newCache, newMemory, newBus) = case pstate of
+        Nothing                       -> ($!) protocolFunction Nothing address cache mem eventBus
+        Just (MESIProtocol mesiState) -> ($!) protocolFunction  (Just mesiState) address cache mem eventBus
         x                             -> error $ "handleTrace does not support state " ++ show x
     -- Design decision to NOT update the cache here since we'd have to check for equality through entire array
     -- Run a tick for the cache and memory
-    elapsedCache  = Cache.elapse newCache 
-    elapsedMemory = Memory.elapse newMemory
+    !elapsedCache  = Cache.elapse newCache 
+    !elapsedMemory = Memory.elapse newMemory
     -- Update internal state and return values
-    hasConsumedTrace = isDone newPState
+    !hasConsumedTrace = isDone (newPState :: MESIProtocol.MESIState)
 
     -- Update statistics: 
     -- IF we receive a LOAD or STORE and we are in a NOTHING stage we must have 
     -- received a new load/store instruction. Update our statistics
-    statsWithLoadStore = if isNothing pstate then addOneStatsLoadStoreCycle stats else stats
+    !statsWithLoadStore = if isNothing pstate then addOneStatsLoadStoreCycle stats else stats
     -- If we in in this state, we MUST be idling waiting for cache
-    statsWithIdleCycle = addOneStatsIdleCycle statsWithLoadStore
+    !statsWithIdleCycle = addOneStatsIdleCycle statsWithLoadStore
     -- If our state is nothing, check with the cache if we have missed 
-    statsWithMissRate  = if isNothing pstate then 
+    !statsWithMissRate  = if isNothing pstate then 
             case Cache.busGetBlockState address cache of 
                 Nothing -> addOneStatsMissCount statsWithIdleCycle
                 _ -> statsWithIdleCycle
             else statsWithIdleCycle
-    finalpstate = if hasConsumedTrace then Nothing else Just $ MESIProtocol newPState 
-    newProcessor  = Processor pid MESI elapsedCache statsWithMissRate cycles finalpstate elapsedMemory
+    !finalpstate = if hasConsumedTrace then Nothing else Just $ MESIProtocol newPState 
+    !newProcessor  = Processor pid MESI elapsedCache statsWithMissRate cycles finalpstate elapsedMemory
 
 -- | If it's any other instruction, choose which protocol should execute it and run the load/store fx
 handleTrace (Processor pid Dragon cache stats cycles pstate mem) trace eventBus = (newProcessor, hasConsumedTrace, newBus) where
