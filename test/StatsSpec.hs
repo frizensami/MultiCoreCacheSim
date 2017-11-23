@@ -19,10 +19,10 @@ spec = do
         it "returns the expected string for 'let x = ProcessorStatistics 2 1000 50 940 10', 'let y = SimulationStatistics 5000 [x] 7777 30 10`, show y" $
             let 
                 x = ProcessorStatistics 1000 50 940 10 2 
-                y = SimulationStatistics 5000 [x] (BusStatistics 7777 0 30 10)
+                y = SimulationStatistics 5000 [x] (BusStatistics 7777 0) (CacheStatistics 30 10) 
                 in  
                 show y `shouldBe` 
-                    "\n-----SIMULATION STATISTICS REPORT-----\nTotal Cycles: 5000\n\n--------------------------------------------\nPID: 2 | Compute Cycles: 1000 | Load Store Instructions: 50 | Idle Cycles: 940 | Cache Miss Rate: 20.0%\n--------------------------------------------\n\nBus Traffic (Bytes): 7777\nBus invalidations/updates: 0\nPrivate Data Accesses: 30\nPublic Data Accesses: 10\n"
+                    "\n-----SIMULATION STATISTICS REPORT-----\nTotal Cycles: 5000\n\n--------------------------------------------\nPID: 2 | Compute Cycles: 1000 | Load Store Instructions: 50 | Idle Cycles: 940 | Cache Miss Rate: 20.0%\n--------------------------------------------\n\nBus Traffic (Bytes): 7777\nBus invalidations/updates: 0\n\nCache private accesses: 30\nCache public accesses: 10\n"
                     
                     
 

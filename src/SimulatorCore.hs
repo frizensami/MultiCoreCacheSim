@@ -10,6 +10,7 @@ import Utility
 import Debug.Trace
 import Statistics
 import qualified Memory 
+import qualified Cache
 
 
 
@@ -119,7 +120,7 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         
     in 
         if allProcessorsComplete processorTraceList
-            then getStatsReport processorTraceList numCyclesCompleted $ Bus.getBusStats elapsedBus
+            then getStatsReport processorTraceList numCyclesCompleted (Bus.getBusStats elapsedBus) $  mergeCacheStatistics (map (Cache.getCacheStats . getCache . fst) newProcessorTraceList)
             else 
                 if newNumCyclesCompleted `mod` 100000 == 0 then
                     trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
@@ -147,11 +148,11 @@ allProcessorsComplete :: [(Processor, [Trace])] -> Bool
 allProcessorsComplete = all null . map snd
 
 -- TO BE IMPLEMETED
-getStatsReport :: [(Processor, [Trace])] -> Int -> BusStatistics -> SimulationStatistics
-getStatsReport processorTraceList totalCycles busStats = 
+getStatsReport :: [(Processor, [Trace])] -> Int -> BusStatistics -> CacheStatistics -> SimulationStatistics
+getStatsReport processorTraceList totalCycles busStats cacheStats = 
     let 
         processorStatsList = map (getProcessorStatistics . fst) processorTraceList
-    in SimulationStatistics totalCycles processorStatsList busStats
+    in SimulationStatistics totalCycles processorStatsList busStats cacheStats
 
 -- TO BE IMPLEMENTED
 -- executeEventBus :: [(Processor, [Trace])] -> CacheBus -> ([(Processor, [Trace])], CacheBus)
