@@ -46,7 +46,11 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus pid = (newMESI
         Nothing     -> MESIWaitCacheRead -- Cache read not finished yet, wait until it is finished
 
     newCache = case cacheHit of
-        Just True   -> Cache.commitRead memoryAddress cache -- Cache hit, do a commit read
+        Just True   -> case blockState of
+            Just _  -> Cache.commitRead memoryAddress cache -- Cache hit, do a commit read
+            Nothing -> cache
+            where
+                blockState = Cache.busGetBlockState memoryAddress cache
         Just False  -> cache -- Cache miss, no changes to cache
         Nothing     -> cache -- Cache read not finished yet, no changes to cache
 
