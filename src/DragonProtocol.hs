@@ -20,12 +20,12 @@ instance ProtocolState DragonState where
     isDone DragonDone   = True
     isDone _            = False
 
-load :: Maybe DragonState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (DragonState, Cache, Memory, CacheBus)
-load Nothing memoryAddress cache memory cacheBus = (newDragonState, newCache, memory, cacheBus) where
+load :: Maybe DragonState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (DragonState, Cache, Memory, CacheBus)
+load Nothing memoryAddress cache memory cacheBus pid = (newDragonState, newCache, memory, cacheBus) where
     newDragonState = DragonWaitCacheRead
     newCache = Cache.issueRead memoryAddress cache
 
-load (Just DragonWaitCacheRead) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, newCacheBus) where
+load (Just DragonWaitCacheRead) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     maybeAcquiredCacheBus = case cacheHit of
@@ -58,7 +58,7 @@ load (Just DragonWaitCacheRead) memoryAddress cache memory cacheBus = (newDragon
 
     newCacheBus = fromMaybe cacheBus maybeAcquiredCacheBus -- Return the acquired cache bus if it is acquired
 
-load (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, newCacheBus) where
+load (Just DragonWaitBusTr) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     (maybeEvictedBlockState, newCache) = case isBusBusy of
@@ -86,7 +86,7 @@ load (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonStat
             Just SM -> cacheBus -- An SM cache block was evicted during allocation, do not release bus as a memory write still needs to be done
             _       -> Bus.release cacheBus -- No M/SM cache block was evicted, Done state reached, release the bus
 
-load (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, newCacheBus) where
+load (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, newCache) = case isMemoryBusy of
@@ -114,7 +114,7 @@ load (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDrago
             Just SM -> cacheBus -- An SM cache block was evicted during allocation, do not release bus as a memory write still needs to be done
             _       -> Bus.release cacheBus -- No M/SM cache block was evicted, Done state reached, release the bus
 
-load (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus = (newDragonState, cache, memory, newCacheBus) where
+load (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newDragonState, cache, memory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newDragonState = case isMemoryBusy of
@@ -125,16 +125,16 @@ load (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus = (newDrag
         True    -> cacheBus -- Memory is still busy, do not release bus
         False   -> Bus.release cacheBus -- Memory is no longer busy, Done state reached, release the bus
 
-load (Just DragonWaitCacheWrite) _ _ _ _ = error "WaitCacheWrite state on DragonProtocol.load"
-load (Just DragonWaitCacheRewrite) _ _ _ _ = error "WaitCacheRewrite state on DragonProtocol.load"
-load (Just DragonDone) _ _ _ _ = error "Done state on DragonProtocol.load"
+load (Just DragonWaitCacheWrite) _ _ _ _ _ = error "WaitCacheWrite state on DragonProtocol.load"
+load (Just DragonWaitCacheRewrite) _ _ _ _ _ = error "WaitCacheRewrite state on DragonProtocol.load"
+load (Just DragonDone) _ _ _ _ _ = error "Done state on DragonProtocol.load"
 
-store :: Maybe DragonState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (DragonState, Cache, Memory, CacheBus)
-store Nothing memoryAddress cache memory cacheBus = (newDragonState, newCache, memory, cacheBus) where
+store :: Maybe DragonState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (DragonState, Cache, Memory, CacheBus)
+store Nothing memoryAddress cache memory cacheBus pid = (newDragonState, newCache, memory, cacheBus) where
     newDragonState = DragonWaitCacheWrite
     newCache = Cache.issueWrite memoryAddress cache
 
-store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, newCacheBus) where
+store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     isCacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
@@ -221,7 +221,7 @@ store (Just DragonWaitCacheWrite) memoryAddress cache memory cacheBus = (newDrag
             Just acquiredCacheBus   -> acquiredCacheBus -- Bus acquired, return the acquired bus
         Nothing     -> cacheBus -- Cache is still busy, no changes to cache bus on this cycle
 
-store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus = (newDragonState, newCache, memory, newCacheBus) where
+store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, memory, newCacheBus) where
     isCacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
@@ -269,7 +269,7 @@ store (Just DragonWaitCacheRewrite) memoryAddress cache memory cacheBus = (newDr
         Just False  -> error "Cache miss on cache rewrite"
         Nothing     -> cacheBus -- Cache is still busy, no changes to cache bus on this cycle
 
-store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, newCacheBus) where
+store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, newCacheBus) where
     isBusBusy = Bus.isBusy cacheBus
     blockState = Cache.busGetBlockState memoryAddress cache
 
@@ -324,7 +324,7 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just SC -> Bus.release cacheBus -- Address is cached, BusUpd operation is finished, Done state reached, release bus
             _       -> cacheBus -- Do not release bus yet as Bus.issue is needed in cache rewrite stage
 
-store (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, cacheBus) where
+store (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, cacheAfterAllocate) = case isMemoryBusy of
@@ -349,7 +349,7 @@ store (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDrag
             Just M  -> Memory.issueWrite memory -- An M block was evicted, issue a memory write
             _       -> memory -- No M block was evicted, no need to issue a memory write
 
-store (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus = (newDragonState, newCache, memory, cacheBus) where
+store (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newDragonState, newCache, memory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newDragonState = case isMemoryBusy of
@@ -360,5 +360,5 @@ store (Just DragonWaitMemoryWrite) memoryAddress cache memory cacheBus = (newDra
         True    -> cache -- Memory is still busy, no changes to cache
         False   -> Cache.issueWrite memoryAddress cache -- Memory is no longer busy, immediately issue a cache write
 
-store (Just DragonWaitCacheRead) _ _ _ _ = error "WaitCacheRead state on DragonProtocol.store"
-store (Just DragonDone) _ _ _ _ = error "Done state on DragonProtocol.store"
+store (Just DragonWaitCacheRead) _ _ _ _ _ = error "WaitCacheRead state on DragonProtocol.store"
+store (Just DragonDone) _ _ _ _ _ = error "Done state on DragonProtocol.store"

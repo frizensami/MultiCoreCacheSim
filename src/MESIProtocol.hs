@@ -22,14 +22,14 @@ instance ProtocolState MESIState where
 
 -- |Loads a memory address to the processor while adhering to the MESI coherence protocol.
 --  Returns the renewed MESIState, cache, memory, and cache bus.
-load :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIState, Cache, Memory, CacheBus)
-load Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
+load :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (MESIState, Cache, Memory, CacheBus)
+load Nothing memoryAddress cache memory cacheBus pid = (newMESIState, newCache, memory, cacheBus) where
     newMESIState = MESIWaitCacheRead
     newCache = Cache.issueRead memoryAddress cache
 
 -- Load on WaitCacheRead.
 -- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done/WaitCacheRead depending on the cache/bus states.
-load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
+load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     maybeAcquiredCacheBus = case cacheHit of
@@ -64,7 +64,7 @@ load (Just MESIWaitCacheRead) memoryAddress cache memory cacheBus = (newMESIStat
 
 -- Load on WaitBusTr, this state could only be reached if the bus transaction issued was not instant (a cache has the address cached on M state, for example).
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on the bus state.
-load (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, cacheBus) where
+load (Just MESIWaitBusTr) memoryAddress cache memory cacheBus pid = (newMESIState, cache, newMemory, cacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     newMESIState = case isBusBusy of
@@ -77,7 +77,7 @@ load (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, c
 
 -- Load on WaitMemoryRead.
 -- Could proceed to WaitMemoryRead/WaitMemoryWrite/Done depending on the memory state and cache allocation result.
-load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
+load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, newMemory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, newCache) = case isMemoryBusy of
@@ -106,7 +106,7 @@ load (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESISta
 
 -- Load on WaitMemoryWrite, this state could only be reached if an M state cache block was evicted during cache allocation.
 -- Could proceed to WaitMemoryWrite/Done state depending on the memory state.
-load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIState, cache, memory, newCacheBus) where
+load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newMESIState, cache, memory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newMESIState = case isMemoryBusy of
@@ -117,20 +117,20 @@ load (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESISt
         True    -> cacheBus -- Memory write of evicted block is still running, no changes to cache bus on this cycle
         False   -> Bus.release cacheBus -- Memory write of evicted block is complete, Done state reached, release the cache bus
 
-load (Just MESIWaitCacheWrite) _ _ _ _ = error "WaitCacheWrite state on MESIProtocol.load"
-load (Just MESIWaitCacheRewrite) _ _ _ _ = error "WaitCacheRewrite state on MESIProtocol.load"
-load (Just MESIDone) _ _ _ _ = error "Done state on MESIProtocol.load"
+load (Just MESIWaitCacheWrite) _ _ _ _ _ = error "WaitCacheWrite state on MESIProtocol.load"
+load (Just MESIWaitCacheRewrite) _ _ _ _ _ = error "WaitCacheRewrite state on MESIProtocol.load"
+load (Just MESIDone) _ _ _ _ _ = error "Done state on MESIProtocol.load"
 
 -- |Stores a memory address from the processor while adhering to the MESI coherence protocol.
 --  Returns the renewed MESIState, cache, memory, and cache bus.
-store :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (MESIState, Cache, Memory, CacheBus)
-store Nothing memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
+store :: Maybe MESIState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (MESIState, Cache, Memory, CacheBus)
+store Nothing memoryAddress cache memory cacheBus pid = (newMESIState, newCache, memory, cacheBus) where
     newMESIState = MESIWaitCacheWrite
     newCache = Cache.issueWrite memoryAddress cache
 
 -- Store on WaitCacheWrite.
 -- Could proceed to Done/IssueBusTr/WaitBusTr/WaitMemoryRead/WaitCacheWrite depending on the bus states and whether it is a cache hit.
-store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, newCacheBus) where
+store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
@@ -195,7 +195,7 @@ store (Just MESIWaitCacheWrite) memoryAddress cache memory cacheBus = (newMESISt
 
 -- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on whether the bus is still busy.
-store (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, cache, newMemory, cacheBus) where
+store (Just MESIWaitBusTr) memoryAddress cache memory cacheBus pid = (newMESIState, cache, newMemory, cacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     newMESIState = case isBusBusy of
@@ -208,7 +208,7 @@ store (Just MESIWaitBusTr) memoryAddress cache memory cacheBus = (newMESIState, 
 
 -- Store on WaitMemoryRead.
 -- Could proceed to WaitMemoryRead/WaitMemoryWrite/WaitCacheRewrite depending on whether an M state block was evicted during allocation.
-store (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESIState, newCache, newMemory, cacheBus) where
+store (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, cacheAfterAllocate) = case isMemoryBusy of
@@ -235,7 +235,7 @@ store (Just MESIWaitMemoryRead) memoryAddress cache memory cacheBus = (newMESISt
 
 -- Store on WaitMemoryWrite, this state could only be reached if an M state block was evicted during allocation.
 -- Could proceed to WaitMemoryWrite/WaitCacheRewrite depending on whether the memory is still busy.
-store (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, cacheBus) where
+store (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, memory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newMESIState = case isMemoryBusy of
@@ -248,7 +248,7 @@ store (Just MESIWaitMemoryWrite) memoryAddress cache memory cacheBus = (newMESIS
 
 -- Store on WaitCacheRewrite, this state could only be reached on a write miss, requiring a fetch from the memory.
 -- Could proceed to Done/WaitCacheRewrite depending on whether the cache is still busy.
-store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESIState, newCache, memory, newCacheBus) where
+store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus pid = (newMESIState, newCache, memory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     newMESIState = case cacheHit of
@@ -266,5 +266,5 @@ store (Just MESIWaitCacheRewrite) memoryAddress cache memory cacheBus = (newMESI
         Just False  -> error "Cache miss on rewrite"
         Nothing     -> cacheBus -- Cache rewrite has not finished, do not release cache bus this cycle
 
-store (Just MESIWaitCacheRead) _ _ _ _ = error "WaitCacheRead state on MESIProtocol.store"
-store (Just MESIDone) _ _ _ _ = error "Done state on MESIProtocol.store"
+store (Just MESIWaitCacheRead) _ _ _ _ _ = error "WaitCacheRead state on MESIProtocol.store"
+store (Just MESIDone) _ _ _ _ _ = error "Done state on MESIProtocol.store"

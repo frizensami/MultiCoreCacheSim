@@ -85,8 +85,8 @@ handleTrace (Processor pid MESI cache stats cycles pstate mem) trace eventBus = 
         t                         -> error "Not expecing OtherInstruction inside handleTrace!"
     -- Run the protocol function and update internal state
     !(newPState, newCache, newMemory, newBus) = case pstate of
-        Nothing                       -> ($!) protocolFunction Nothing address cache mem eventBus
-        Just (MESIProtocol mesiState) -> ($!) protocolFunction  (Just mesiState) address cache mem eventBus
+        Nothing                       -> ($!) protocolFunction Nothing address cache mem eventBus pid
+        Just (MESIProtocol mesiState) -> ($!) protocolFunction  (Just mesiState) address cache mem eventBus pid
         x                             -> error $ "handleTrace does not support state " ++ show x
     -- Design decision to NOT update the cache here since we'd have to check for equality through entire array
     -- Run a tick for the cache and memory
@@ -120,8 +120,8 @@ handleTrace (Processor pid Dragon cache stats cycles pstate mem) trace eventBus 
         t                         -> error "Not expecing OtherInstruction inside handleTrace!"
     -- Run the protocol function and update internal state
     (newPState, newCache, newMemory, newBus) = case pstate of
-        Nothing                           -> protocolFunction Nothing address cache mem eventBus
-        Just (DragonProtocol dragonState) -> protocolFunction (Just dragonState) address cache mem eventBus
+        Nothing                           -> protocolFunction Nothing address cache mem eventBus pid
+        Just (DragonProtocol dragonState) -> protocolFunction (Just dragonState) address cache mem eventBus pid
         x                                 -> error $ "handleTrace does not support state " ++ show x
     -- Design decision to NOT update the cache here since we'd have to check for equality through entire array
     -- Run a tick for the cache and memory
@@ -155,8 +155,8 @@ handleTrace (Processor pid Illinois cache stats cycles pstate mem) trace eventBu
         t                         -> error "Not expecing OtherInstruction inside handleTrace!"
     -- Run the protocol function and update internal state
     (newPState, newCache, newMemory, newBus) = case pstate of
-        Nothing                           -> protocolFunction Nothing address cache mem eventBus
-        Just (IllinoisProtocol illinoisState) -> protocolFunction (Just illinoisState) address cache mem eventBus
+        Nothing                           -> protocolFunction Nothing address cache mem eventBus pid
+        Just (IllinoisProtocol illinoisState) -> protocolFunction (Just illinoisState) address cache mem eventBus pid
         x                                 -> error $ "handleTrace does not support state " ++ show x
     -- Design decision to NOT update the cache here since we'd have to check for equality through entire array
     -- Run a tick for the cache and memory

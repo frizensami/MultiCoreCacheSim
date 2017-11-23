@@ -22,14 +22,14 @@ instance ProtocolState IllinoisState where
 
 -- |Loads a memory address to the processor while adhering to the Illinois coherence protocol.
 --  Returns the renewed IllinoisState, cache, memory, and cache bus.
-load :: Maybe IllinoisState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (IllinoisState, Cache, Memory, CacheBus)
-load Nothing memoryAddress cache memory cacheBus = (newIllinoisState, newCache, memory, cacheBus) where
+load :: Maybe IllinoisState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (IllinoisState, Cache, Memory, CacheBus)
+load Nothing memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, memory, cacheBus) where
     newIllinoisState = IllinoisWaitCacheRead
     newCache = Cache.issueRead memoryAddress cache
 
 -- Load on WaitCacheRead.
 -- Could proceed to IssueBusTr/WaitBusTr/WaitMemoryRead/Done/WaitCacheRead depending on the cache/bus states.
-load (Just IllinoisWaitCacheRead) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, newCacheBus) where
+load (Just IllinoisWaitCacheRead) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     maybeAcquiredCacheBus = case cacheHit of
@@ -64,7 +64,7 @@ load (Just IllinoisWaitCacheRead) memoryAddress cache memory cacheBus = (newIlli
 
 -- Load on WaitBusTr, this state could only be reached if the bus transaction issued was not instant (a cache has the address cached on M state, for example).
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on the bus state.
-load (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, newCacheBus) where
+load (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, newCacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     (maybeEvictedBlockState, newCache) = case isBusBusy of
@@ -91,7 +91,7 @@ load (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus = (newIllinois
 
 -- Load on WaitMemoryRead.
 -- Could proceed to WaitMemoryRead/WaitMemoryWrite/Done depending on the memory state and cache allocation result.
-load (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, newCacheBus) where
+load (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, newCache) = case isMemoryBusy of
@@ -118,7 +118,7 @@ load (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus = (newIll
 
 -- Load on WaitMemoryWrite, this state could only be reached if an M state cache block was evicted during cache allocation.
 -- Could proceed to WaitMemoryWrite/Done state depending on the memory state.
-load (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus = (newIllinoisState, cache, memory, newCacheBus) where
+load (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newIllinoisState, cache, memory, newCacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newIllinoisState = case isMemoryBusy of
@@ -129,20 +129,20 @@ load (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus = (newIl
         True    -> cacheBus -- Memory write of evicted block is still running, no changes to cache bus on this cycle
         False   -> Bus.release cacheBus -- Memory write of evicted block is complete, Done state reached, release the cache bus
 
-load (Just IllinoisWaitCacheWrite) _ _ _ _ = error "WaitCacheWrite state on IllinoisProtocol.load"
-load (Just IllinoisWaitCacheRewrite) _ _ _ _ = error "WaitCacheRewrite state on IllinoisProtocol.load"
-load (Just IllinoisDone) _ _ _ _ = error "Done state on IllinoisProtocol.load"
+load (Just IllinoisWaitCacheWrite) _ _ _ _ _ = error "WaitCacheWrite state on IllinoisProtocol.load"
+load (Just IllinoisWaitCacheRewrite) _ _ _ _ _ = error "WaitCacheRewrite state on IllinoisProtocol.load"
+load (Just IllinoisDone) _ _ _ _ _ = error "Done state on IllinoisProtocol.load"
 
 -- |Stores a memory address from the processor while adhering to the Illinois coherence protocol.
 --  Returns the renewed IllinoisState, cache, memory, and cache bus.
-store :: Maybe IllinoisState -> MemoryAddress -> Cache -> Memory -> CacheBus -> (IllinoisState, Cache, Memory, CacheBus)
-store Nothing memoryAddress cache memory cacheBus = (newIllinoisState, newCache, memory, cacheBus) where
+store :: Maybe IllinoisState -> MemoryAddress -> Cache -> Memory -> CacheBus -> Int -> (IllinoisState, Cache, Memory, CacheBus)
+store Nothing memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, memory, cacheBus) where
     newIllinoisState = IllinoisWaitCacheWrite
     newCache = Cache.issueWrite memoryAddress cache
 
 -- Store on WaitCacheWrite.
 -- Could proceed to Done/IssueBusTr/WaitBusTr/WaitMemoryRead/WaitCacheWrite depending on the bus states and whether it is a cache hit.
-store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, newCacheBus) where
+store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
     blockState = Cache.busGetBlockState memoryAddress cache
 
@@ -207,7 +207,7 @@ store (Just IllinoisWaitCacheWrite) memoryAddress cache memory cacheBus = (newIl
 
 -- Store on WaitBusTr, this state could only be reached if the issued bus transaction was not instant.
 -- Could proceed to WaitBusTr/WaitMemoryRead depending on whether the bus is still busy.
-store (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, cacheBus) where
+store (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, cacheBus) where
     isBusBusy = Bus.isBusy cacheBus
 
     (maybeEvictedBlockState, cacheAfterAllocate) = case isBusBusy of
@@ -234,7 +234,7 @@ store (Just IllinoisWaitBusTr) memoryAddress cache memory cacheBus = (newIllinoi
 
 -- Store on WaitMemoryRead.
 -- Could proceed to WaitMemoryRead/WaitMemoryWrite/WaitCacheRewrite depending on whether an M state block was evicted during allocation.
-store (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, newMemory, cacheBus) where
+store (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     (maybeEvictedBlockState, cacheAfterAllocate) = case isMemoryBusy of
@@ -261,7 +261,7 @@ store (Just IllinoisWaitMemoryRead) memoryAddress cache memory cacheBus = (newIl
 
 -- Store on WaitMemoryWrite, this state could only be reached if an M state block was evicted during allocation.
 -- Could proceed to WaitMemoryWrite/WaitCacheRewrite depending on whether the memory is still busy.
-store (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, memory, cacheBus) where
+store (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, memory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
 
     newIllinoisState = case isMemoryBusy of
@@ -274,7 +274,7 @@ store (Just IllinoisWaitMemoryWrite) memoryAddress cache memory cacheBus = (newI
 
 -- Store on WaitCacheRewrite, this state could only be reached on a write miss, requiring a fetch from the memory.
 -- Could proceed to Done/WaitCacheRewrite depending on whether the cache is still busy.
-store (Just IllinoisWaitCacheRewrite) memoryAddress cache memory cacheBus = (newIllinoisState, newCache, memory, newCacheBus) where
+store (Just IllinoisWaitCacheRewrite) memoryAddress cache memory cacheBus pid = (newIllinoisState, newCache, memory, newCacheBus) where
     cacheHit = Cache.isCacheHit cache
 
     newIllinoisState = case cacheHit of
@@ -292,5 +292,5 @@ store (Just IllinoisWaitCacheRewrite) memoryAddress cache memory cacheBus = (new
         Just False  -> error "Cache miss on rewrite"
         Nothing     -> cacheBus -- Cache rewrite has not finished, do not release cache bus this cycle
 
-store (Just IllinoisWaitCacheRead) _ _ _ _ = error "WaitCacheRead state on IllinoisProtocol.store"
-store (Just IllinoisDone) _ _ _ _ = error "Done state on IllinoisProtocol.store"
+store (Just IllinoisWaitCacheRead) _ _ _ _ _ = error "WaitCacheRead state on IllinoisProtocol.store"
+store (Just IllinoisDone) _ _ _ _ _ = error "Done state on IllinoisProtocol.store"
