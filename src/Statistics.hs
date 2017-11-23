@@ -59,13 +59,13 @@ createBusStatistics :: BusStatistics
 createBusStatistics = BusStatistics 0 0
 
 addBusTrafficStats :: BusTrafficBytes -> BusStatistics -> BusStatistics
-addBusTrafficStats toAdd (BusStatistics traffic ivupd) = BusStatistics (traffic + toAdd) ivupd
+addBusTrafficStats !toAdd (BusStatistics !traffic !ivupd) = BusStatistics (traffic + toAdd) ivupd
 
 addBusIvUpdStats :: BusTrafficBytes -> BusStatistics -> BusStatistics
 addBusIvUpdStats toAdd (BusStatistics traffic ivupd) = BusStatistics traffic (ivupd + toAdd)
 
 incrementBusIvUpdStats :: BusStatistics -> BusStatistics
-incrementBusIvUpdStats  stats = addBusIvUpdStats 1 stats
+incrementBusIvUpdStats  !stats = addBusIvUpdStats 1 stats
 
 data CacheStatistics = CacheStatistics { getPrivateDataAccesses :: PrivateDataAccesses
                                        , getPublicDataAccesses :: PublicDataAccesses
@@ -80,19 +80,19 @@ createCacheStatistics :: CacheStatistics
 createCacheStatistics = CacheStatistics 0 0
 
 addCachePrivateAccessStats :: PrivateDataAccesses -> CacheStatistics -> CacheStatistics
-addCachePrivateAccessStats toAdd (CacheStatistics private public) = CacheStatistics (private + toAdd) public
+addCachePrivateAccessStats !toAdd (CacheStatistics !private !public) = CacheStatistics (private + toAdd) public
 
 addCachePublicAccessStats :: PublicDataAccesses -> CacheStatistics -> CacheStatistics
-addCachePublicAccessStats toAdd (CacheStatistics private public) = CacheStatistics private (public + toAdd)
+addCachePublicAccessStats !toAdd (CacheStatistics private public) = CacheStatistics private (public + toAdd)
 
 incrementCachePrivateAccessStats :: CacheStatistics -> CacheStatistics
-incrementCachePrivateAccessStats stats = addCachePrivateAccessStats 1 stats
+incrementCachePrivateAccessStats !stats = addCachePrivateAccessStats 1 stats
 
 incrementCachePublicAccessStats :: CacheStatistics -> CacheStatistics
-incrementCachePublicAccessStats  stats = addCachePublicAccessStats 1 stats
+incrementCachePublicAccessStats  !stats = addCachePublicAccessStats 1 stats
 
 mergeCacheStatistics :: [CacheStatistics] -> CacheStatistics
-mergeCacheStatistics xs = 
+mergeCacheStatistics !xs = 
     addCachePublicAccessStats (sum $ map getPublicDataAccesses xs) $ 
         addCachePrivateAccessStats (sum $ map getPrivateDataAccesses xs)
             createCacheStatistics
