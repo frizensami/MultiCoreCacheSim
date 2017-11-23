@@ -103,7 +103,7 @@ acquire (DragonBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBus
             where
                 wordsPerBlock = blockSize `div` 4
         newBusStatistics = case cachesHaveCopies of
-            True    -> addBusTrafficStats blockSize oldBusStatistics
+            True    -> (incrementBusIvUpdStats . addBusTrafficStats blockSize) oldBusStatistics
             False   -> oldBusStatistics
         cachesHaveCopies = hasCopies memoryAddress $ CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics
         blockSize = CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0
