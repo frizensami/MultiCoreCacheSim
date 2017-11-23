@@ -16,15 +16,15 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility, Bus, Statistics, Cache, CacheParams, CacheSet, CacheBlock, Memory, MemoryAddress, Protocol, Protocols, MESIProtocol, DragonProtocol, IllinoisProtocol
-  ghc-options:         -Wall -Wno-unused-matches -Wunused-local-binds -O2 -auto-all
+  ghc-options:         -Wall -Wno-unused-matches -Wunused-local-binds -O2 -auto-all -optc-O3
   extensions:          BangPatterns
-  build-depends:       base >= 4.7 && < 5, containers, array, NoTrace
+  build-depends:       base >= 4.7 && < 5, containers, array, NoTrace, diffarray
   default-language:    Haskell2010
 
 executable cs4223-as2-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O2 -optc-O3
   build-depends:       base
                      , cs4223-as2
   default-language:    Haskell2010
