@@ -30,7 +30,7 @@ spec =
 
                     -- Expected statistics output
                     procExpectedStats = map (ProcessorStatistics expectedTotal 0 0 0) [0..(num_processors-1)]
-                    simExpectedStats = SimulationStatistics expectedTotal procExpectedStats (BusStatistics 0 0 0 0)
+                    simExpectedStats = SimulationStatistics expectedTotal procExpectedStats (BusStatistics 0 0) (CacheStatistics 0 0)
                     in
                         statsReport `shouldBe` simExpectedStats
 

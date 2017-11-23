@@ -90,3 +90,9 @@ incrementCachePrivateAccessStats stats = addCachePrivateAccessStats 1 stats
 
 incrementCachePublicAccessStats :: CacheStatistics -> CacheStatistics
 incrementCachePublicAccessStats  stats = addCachePublicAccessStats 1 stats
+
+mergeCacheStatistics :: [CacheStatistics] -> CacheStatistics
+mergeCacheStatistics xs = 
+    addCachePublicAccessStats (sum $ map getPublicDataAccesses xs) $ 
+        addCachePrivateAccessStats (sum $ map getPrivateDataAccesses xs)
+            createCacheStatistics
