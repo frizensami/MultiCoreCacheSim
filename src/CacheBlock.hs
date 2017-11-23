@@ -1,6 +1,6 @@
 module CacheBlock (BlockState (..), CacheBlock, create, allocate, evict, isValid, hasTag, getBlockState, setBlockState) where
 
-import Data.Array as Array
+import Data.Array.Unboxed as Array
 import Definitions
 
 data BlockState = M | E | S | I | SC | SM deriving (Show, Eq)

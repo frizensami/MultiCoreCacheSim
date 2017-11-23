@@ -5,7 +5,7 @@ import qualified CacheParams
 import CacheSet (CacheSet)
 import qualified CacheSet
 import CacheBlock (BlockState (..))
-import Data.Array as Array
+import Data.Array.Unboxed as Array
 import Definitions
 import qualified MemoryAddress
 
