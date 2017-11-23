@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility, Bus, Statistics, Cache, CacheParams, CacheSet, CacheBlock, Memory, MemoryAddress, Protocol, Protocols, MESIProtocol, DragonProtocol
+  exposed-modules:     SimulatorCore, Trace, Definitions, Processor, Utility, Bus, Statistics, Cache, CacheParams, CacheSet, CacheBlock, Memory, MemoryAddress, Protocol, Protocols, MESIProtocol, DragonProtocol, IllinoisProtocol
   ghc-options:         -Wall -Wno-unused-matches -Wunused-local-binds -O2 -auto-all
   extensions:          BangPatterns
   build-depends:       base >= 4.7 && < 5, containers, array, NoTrace
