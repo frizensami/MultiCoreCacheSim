@@ -2,7 +2,7 @@ module Definitions where
 
 import Data.Int
 
-data Protocol = MESI | Dragon deriving (Show, Read)
+data Protocol = MESI | Dragon | Illinois deriving (Show, Read)
 type ProtocolInput = String
 type Filename = String
 type CacheSize = Int

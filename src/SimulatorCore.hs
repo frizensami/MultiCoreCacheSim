@@ -7,7 +7,7 @@ import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
-import Debug.Trace
+import Debug.NoTrace
 import Statistics
 import qualified Memory 
 
@@ -114,9 +114,12 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
 
         -- Elapse a bus cycle if all processors are complete
         !elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
+
+        !x = trace ("Bus stats: \n" ++ show (Bus.getBusStats elapsedBus)) 5
+        
     in 
         if allProcessorsComplete processorTraceList
-            then getStatsReport processorTraceList numCyclesCompleted
+            then getStatsReport processorTraceList numCyclesCompleted $ Bus.getBusStats elapsedBus
             else 
                 if newNumCyclesCompleted `mod` 1 == 0 then
                     trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
@@ -144,11 +147,11 @@ allProcessorsComplete :: [(Processor, [Trace])] -> Bool
 allProcessorsComplete = all null . map snd
 
 -- TO BE IMPLEMETED
-getStatsReport :: [(Processor, [Trace])] -> Int -> SimulationStatistics
-getStatsReport processorTraceList totalCycles = 
+getStatsReport :: [(Processor, [Trace])] -> Int -> BusStatistics -> SimulationStatistics
+getStatsReport processorTraceList totalCycles busStats = 
     let 
         processorStatsList = map (getProcessorStatistics . fst) processorTraceList
-    in SimulationStatistics totalCycles processorStatsList (BusStatistics 0 0 0 0)
+    in SimulationStatistics totalCycles processorStatsList busStats
 
 -- TO BE IMPLEMENTED
 -- executeEventBus :: [(Processor, [Trace])] -> CacheBus -> ([(Processor, [Trace])], CacheBus)
