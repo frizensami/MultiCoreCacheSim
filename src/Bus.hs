@@ -4,7 +4,6 @@ module Bus (CacheBus, BusTr (..), getCacheBusCaches, getBusStats, create, update
 import Definitions
 import Cache (Cache)
 import qualified Cache
-import CacheParams (CacheParams)
 import qualified CacheParams
 import CacheBlock (BlockState (..))
 import Memory (Memory)
@@ -32,7 +31,7 @@ data BusTr = MESIBusRd MemoryAddress | MESIBusRdX MemoryAddress | MESIBusUpg Mem
 
 -- | Creating brand new cache event bus - likely to be only called once then updated with recreate method
 create :: [Cache] -> Memory -> CacheBus
-create caches memory = CacheBus caches memory Nothing 0 newBusStatistics
+create caches memory = CacheBus caches memory Nothing 0 createBusStatistics
 
 -- | Updates the caches in the specified event bus
 updateCaches :: CacheBus -> [Cache] -> CacheBus 

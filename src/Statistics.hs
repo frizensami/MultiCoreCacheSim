@@ -57,8 +57,8 @@ instance Show BusStatistics where
         "Private Data Accesses: " ++ (show private) ++ "\n" ++ 
         "Public Data Accesses: " ++ (show public) ++ "\n"
 
-newBusStatistics :: BusStatistics
-newBusStatistics = BusStatistics 0 0 0 0
+createBusStatistics :: BusStatistics
+createBusStatistics = BusStatistics 0 0 0 0
 
 addBusTrafficStats :: BusTrafficBytes -> BusStatistics -> BusStatistics
 addBusTrafficStats toAdd (BusStatistics traffic ivupd private public) = BusStatistics (traffic + toAdd) ivupd private public

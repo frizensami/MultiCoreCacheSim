@@ -40,7 +40,7 @@ create cacheSize associativity blockSize = Cache cacheParams cacheSets busyCycle
 --  Returns the renewed cache.
 issueRead :: MemoryAddress -> Cache -> Cache
 issueRead memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
-    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
+    (blockTag, setIndex, _) = MemoryAddress.parse oldCacheParams memoryAddress
 
     newCache = Cache oldCacheParams oldCacheSets readCycles maybeIsCacheHit where
         maybeIsCacheHit = Just $ CacheSet.hasTag blockTag $ oldCacheSets!setIndex
@@ -62,7 +62,7 @@ commitRead memoryAddress (Cache _ _ _ _) = error "Commit read when cache is stil
 --  Returns the renewed cache.
 issueWrite :: MemoryAddress -> Cache -> Cache
 issueWrite memoryAddress (Cache oldCacheParams oldCacheSets _ _) = newCache where
-    (blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
+    (blockTag, setIndex, _) = MemoryAddress.parse oldCacheParams memoryAddress
 
     newCache = Cache oldCacheParams oldCacheSets writeCycles maybeIsCacheHit where
         maybeIsCacheHit = Just $ CacheSet.hasTag blockTag $ oldCacheSets!setIndex

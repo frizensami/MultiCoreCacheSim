@@ -5,8 +5,6 @@ import qualified CacheParams
 import Data.Bits as Bits
 import Definitions
 
-main = print $ parse (CacheParams.create 32 2 8) 36
-
 -- |Parses a memory address into the respective block tag, set index, and offset while adhering to the
 --  specified block size and number of cache sets.
 --  Returns the block tag, set index, and offset in a tuple.
