@@ -34,9 +34,9 @@ allocate blockState blockTag offset memoryAddress (CacheSet oldCacheBlocks) = ne
 allocateFirstCacheBlock :: BlockState -> BlockTag -> Offset -> MemoryAddress -> [CacheBlock] -> [CacheBlock]
 allocateFirstCacheBlock blockState blockTag offset memoryAddress [] = []
 allocateFirstCacheBlock blockState blockTag offset memoryAddress (x:xs)
-    | not $ CacheBlock.isValid x    = xs ++ newCacheBlock
-    | otherwise                     = (:[]) x ++ recurrence where
-        newCacheBlock = (:[]) $ CacheBlock.allocate blockState blockTag offset memoryAddress x
+    | not $ CacheBlock.isValid x    = xs ++ (:[]) newCacheBlock
+    | otherwise                     = x : recurrence where
+        newCacheBlock = CacheBlock.allocate blockState blockTag offset memoryAddress x
         recurrence = allocateFirstCacheBlock blockState blockTag offset memoryAddress xs
 
 -- |Evicts the first valid cache block within the specified cache set.
@@ -50,8 +50,8 @@ evictLRU (CacheSet oldCacheBlocks) = (evictedBlockState, newCacheSet) where
 recursivelyEvictLRU :: [CacheBlock] -> (Maybe BlockState, [CacheBlock])
 recursivelyEvictLRU [] = (Nothing, [])
 recursivelyEvictLRU (x:xs)
-    | CacheBlock.isValid x  = combineEvictTuple (Just evictedBlockState, (:[]) newCacheBlock) recurrence
-    | otherwise             = combineEvictTuple (Nothing, (:[]) x) recurrence
+    | CacheBlock.isValid x  = combineEvictTuple (Just evictedBlockState, newCacheBlock) recurrence
+    | otherwise             = combineEvictTuple (Nothing, x) recurrence
     where
         (evictedBlockState, newCacheBlock) = CacheBlock.evict x
         recurrence = recursivelyEvictLRU xs
@@ -67,17 +67,17 @@ evict blockTag (CacheSet oldCacheBlocks) = (evictedBlockState, newCacheSet) wher
 recursivelyEvict :: BlockTag -> [CacheBlock] -> (Maybe BlockState, [CacheBlock])
 recursivelyEvict blockTag [] = (Nothing, [])
 recursivelyEvict blockTag (x:xs)
-    | CacheBlock.isValid x && CacheBlock.hasTag blockTag x  = combineEvictTuple (Just evictedBlockState, (:[]) newCacheBlock) recurrence
-    | otherwise                                             = combineEvictTuple (Nothing, (:[]) x) recurrence
+    | CacheBlock.isValid x && CacheBlock.hasTag blockTag x  = combineEvictTuple (Just evictedBlockState, newCacheBlock) recurrence
+    | otherwise                                             = combineEvictTuple (Nothing, x) recurrence
     where
         (evictedBlockState, newCacheBlock) = CacheBlock.evict x
         recurrence = recursivelyEvict blockTag xs
 
-combineEvictTuple :: (Maybe BlockState, [CacheBlock]) -> (Maybe BlockState, [CacheBlock]) -> (Maybe BlockState, [CacheBlock])
-combineEvictTuple (Nothing, blocksX) (Nothing, blocksY) = (Nothing, blocksX ++ blocksY)
-combineEvictTuple (Just stateX, blocksX) (Nothing, blocksY) = (Just stateX, blocksX ++ blocksY)
-combineEvictTuple (Nothing, blocksX) (Just stateY, blocksY) = (Just stateY, blocksX ++ blocksY)
-combineEvictTuple (Just stateX, blocksX) (Just stateY, blocksY) = (Just stateX, blocksX ++ blocksY)
+combineEvictTuple :: (Maybe BlockState, CacheBlock) -> (Maybe BlockState, [CacheBlock]) -> (Maybe BlockState, [CacheBlock])
+combineEvictTuple (Nothing, blockX) (Nothing, blocksY) = (Nothing, blockX : blocksY)
+combineEvictTuple (Just stateX, blockX) (Nothing, blocksY) = (Just stateX, blockX : blocksY)
+combineEvictTuple (Nothing, blockX) (Just stateY, blocksY) = (Just stateY, blockX : blocksY)
+combineEvictTuple (Just stateX, blockX) (Just stateY, blocksY) = (Just stateX, blockX : blocksY)
 
 -- |Finds a tag in a valid block within the specified cache set.
 --  Returns a boolean indicating whether the tag was found.
@@ -121,7 +121,7 @@ setBlockState blockState blockTag (CacheSet oldCacheBlocks) = newCacheSet where
 recursivelySetBlockState :: BlockState -> BlockTag -> [CacheBlock] -> [CacheBlock]
 recursivelySetBlockState blockState blockTag [] = []
 recursivelySetBlockState blockState blockTag (x:xs)
-    | (CacheBlock.isValid x) && (CacheBlock.hasTag blockTag x)  = (:[]) newCacheBlock ++ recurrence
-    | otherwise                                                 = (:[]) x ++ recurrence where
+    | (CacheBlock.isValid x) && (CacheBlock.hasTag blockTag x)  = newCacheBlock : recurrence
+    | otherwise                                                 = x : recurrence where
         newCacheBlock = CacheBlock.setBlockState blockState x
         recurrence = recursivelySetBlockState blockState blockTag xs
