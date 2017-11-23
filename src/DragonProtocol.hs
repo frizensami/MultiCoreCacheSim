@@ -327,7 +327,7 @@ store (Just DragonWaitBusTr) memoryAddress cache memory cacheBus = (newDragonSta
             Just SM -> Bus.release cacheBus -- Address is cached, BusUpd operation is finished, Done state reached, release bus
             Just SC -> Bus.release cacheBus -- Address is cached, BusUpd operation is finished, Done state reached, release bus
             Just I  -> cacheBus -- Do not release bus yet as Bus.issue is needed in cache rewrite stage
-            _       -> error "Unknown block state in Dragon Protocol"
+            x       -> error $ "Unknown block state in Dragon Protocol = " ++ show x
 
 store (Just DragonWaitMemoryRead) memoryAddress cache memory cacheBus = (newDragonState, newCache, newMemory, cacheBus) where
     isMemoryBusy = Memory.isBusy memory
