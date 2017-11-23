@@ -32,16 +32,18 @@ type PublicDataAccesses = Int
 data SimulationStatistics = SimulationStatistics { getTotalCycles         :: TotalCycles
                                                  , getProcessorStats      :: [ProcessorStatistics]
                                                  , getBusStatistics       :: BusStatistics
+                                                 , getCacheStatistics     :: CacheStatistics
                                                  } deriving (Eq)
                                                  
 
 instance Show SimulationStatistics where
-    show (SimulationStatistics cycles processor_xs busstats) = 
+    show (SimulationStatistics cycles processor_xs busstats cachestats) = 
         "\n-----SIMULATION STATISTICS REPORT-----\n" ++
         "Total Cycles: " ++ (show cycles) ++ "\n" ++
         (concatMap (("\n--------------------------------------------\n" ++) . show) processor_xs) ++
         "\n--------------------------------------------\n\n" ++
-        show busstats
+        show busstats ++ "\n" ++
+        show cachestats
 
 
 data BusStatistics = BusStatistics { getBusTrafficBytes     :: BusTrafficBytes
@@ -68,6 +70,11 @@ incrementBusIvUpdStats  stats = addBusIvUpdStats 1 stats
 data CacheStatistics = CacheStatistics { getPrivateDataAccesses :: PrivateDataAccesses
                                        , getPublicDataAccesses :: PublicDataAccesses
                                        } deriving (Eq)
+
+instance Show CacheStatistics where
+    show (CacheStatistics private public) =
+        "Cache private accesses: " ++ (show private) ++ "\n" ++
+        "Cache public accesses: " ++ (show public) ++ "\n"
 
 createCacheStatistics :: CacheStatistics
 createCacheStatistics = CacheStatistics 0 0
