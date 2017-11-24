@@ -7,7 +7,7 @@ import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
-import Debug.Trace
+import Debug.NoTrace
 import Statistics
 import qualified Memory 
 import qualified Cache

@@ -184,18 +184,18 @@ handleTrace (Processor pid Illinois cache stats cycles pstate mem) trace eventBu
 
 -- | Runs one compute cycle from the number of cycles left to do computation
 processOneComputeCycle :: Processor -> (Processor, Bool)
-processOneComputeCycle !(Processor pid protocol cache stats cycles pstate mem) = (newProcessor, isdone) where
-    newProcessor = Processor pid protocol cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0) pstate mem
-    isdone = getCyclesToCompute newProcessor == 0
+processOneComputeCycle !(Processor !pid !protocol !cache !stats !cycles !pstate !mem) = (newProcessor, isdone) where
+    !newProcessor = Processor pid protocol cache (addOneStatsComputeCycle stats) (max (cycles - 1) 0) pstate mem
+    !isdone = getCyclesToCompute newProcessor == 0
 
 addOneStatsComputeCycle :: ProcessorStatistics -> ProcessorStatistics
-addOneStatsComputeCycle !(ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics (compute + 1) loadstore idle misscount pid
+addOneStatsComputeCycle !(ProcessorStatistics !compute !loadstore !idle !misscount !pid) = ProcessorStatistics (compute + 1) loadstore idle misscount pid
 
 addOneStatsLoadStoreCycle :: ProcessorStatistics -> ProcessorStatistics
-addOneStatsLoadStoreCycle !(ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute (loadstore + 1) idle misscount pid
+addOneStatsLoadStoreCycle !(ProcessorStatistics !compute !loadstore !idle !misscount !pid) = ProcessorStatistics compute (loadstore + 1) idle misscount pid
 
 addOneStatsIdleCycle :: ProcessorStatistics -> ProcessorStatistics
-addOneStatsIdleCycle !(ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute loadstore (idle + 1) misscount pid
+addOneStatsIdleCycle !(ProcessorStatistics !compute !loadstore !idle !misscount !pid) = ProcessorStatistics compute loadstore (idle + 1) misscount pid
 
 addOneStatsMissCount :: ProcessorStatistics -> ProcessorStatistics
-addOneStatsMissCount !(ProcessorStatistics compute loadstore idle misscount pid) = ProcessorStatistics compute loadstore idle (misscount + 1) pid
+addOneStatsMissCount !(ProcessorStatistics !compute !loadstore !idle !misscount !pid) = ProcessorStatistics compute loadstore idle (misscount + 1) pid
