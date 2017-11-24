@@ -7,7 +7,7 @@ import qualified Bus
 import Definitions
 import Control.Monad (liftM)
 import Utility
-import Debug.NoTrace
+import Debug.Trace
 import Statistics
 import qualified Memory 
 import qualified Cache
@@ -116,13 +116,13 @@ runAllSimulationCycles processorTraceList eventBus processorIndex numCyclesCompl
         -- Elapse a bus cycle if all processors are complete
         !elapsedBus = if newProcessorIndex == 0 then Bus.elapse newBus else newBus
 
-        !x = if newNumCyclesCompleted `mod` 100000 == 0 then trace ("Bus stats: \n" ++ show (Bus.getBusStats elapsedBus)) 5 else 5
+        !x = if newNumCyclesCompleted `mod` 1000000 == 0 then trace ("Bus stats: \n" ++ show (Bus.getBusStats elapsedBus)) 5 else 5
         
     in 
         if allProcessorsComplete processorTraceList
             then getStatsReport processorTraceList numCyclesCompleted (Bus.getBusStats elapsedBus) $  mergeCacheStatistics (map (Cache.getCacheStats . getCache . fst) newProcessorTraceList)
             else 
-                if newNumCyclesCompleted `mod` 100000 == 0 then
+                if newNumCyclesCompleted `mod` 1000000 == 0 then
                     trace ("runAllSimulationCycles pid=" ++ show processorIndex ++ ": Cycles Completed: " ++ show numCyclesCompleted) $ runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
                 else  runAllSimulationCycles newProcessorTraceList elapsedBus newProcessorIndex newNumCyclesCompleted
 

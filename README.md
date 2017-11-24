@@ -62,3 +62,11 @@ Processor.hs is just a stub - processor data types must be properly defined, so 
 Also, tests must be implemented for these lower-level data structures (like the caches etc).
 
 
+### Learning Points
+- Don't underestimate bang patterns - laziness can be a memory killer!
+- Run heap profiling often, e.g. `stack exec cs4223-as2-exe MESI data/blackscholes_four/bs 1024 1 16  -- +RTS -h -xc -RTS`
+- Use `hp2pretty` with `watch` to get good live data of the heap
+- Vary the `-h` arguments to get different types of heap data: `hm` for modules, `hy` for closure types..
+- Use the `lens` package for access into nested data structures!
+- Or at least use record syntax to access and update as opposed to `(SimulationStatistics _ _ _ ...)` pattern matching
+- Learn how to use the ST Monad for "mutable" arrays so that we can give the GC a break!

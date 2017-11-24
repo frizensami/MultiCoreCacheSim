@@ -93,17 +93,17 @@ commitWrite memoryAddress (Cache oldCacheParams oldCacheSets 0 (Just True) oldCa
     !(blockTag, setIndex, offset) = MemoryAddress.parse oldCacheParams memoryAddress
 
     !newCache = Cache oldCacheParams newCacheSets 0 (Just True) oldCacheStatistics where
-        newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
-            newCacheSet = CacheSet.allocate modifiedState blockTag offset memoryAddress evictedCacheSet where
-                modifiedState = case evictedBlockState of
+        !newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]] where
+            !newCacheSet = CacheSet.allocate modifiedState blockTag offset memoryAddress evictedCacheSet where
+                !modifiedState = case evictedBlockState of
                     M   -> M
                     E   -> M
                     S   -> M
                     SC  -> M
                     SM  -> M
                     I   -> error "Cache hit on I state"
-                (evictedBlockState, evictedCacheSet) = CacheSet.evict blockTag oldCacheSet where
-                    oldCacheSet = oldCacheSets!setIndex
+                (!evictedBlockState, !evictedCacheSet) = CacheSet.evict blockTag oldCacheSet where
+                    !oldCacheSet = oldCacheSets!setIndex
 commitWrite memoryAddress (Cache _ _ _ _ _) = error "Commit write when cache is still busy or cache miss"
 
 busGetBlockState :: MemoryAddress -> Cache -> (Maybe BlockState)
@@ -133,11 +133,11 @@ busAllocate blockState memoryAddress (Cache oldCacheParams oldCacheSets oldBusyC
         | CacheSet.canAllocate oldCacheSet  = (Nothing, CacheSet.allocate blockState blockTag offset memoryAddress oldCacheSet)
         | otherwise                         = (Just evictedBlockState, CacheSet.allocate blockState blockTag offset memoryAddress evictedCacheSet)
         where
-            oldCacheSet = oldCacheSets!setIndex
+            !oldCacheSet = oldCacheSets!setIndex
             (evictedBlockState, evictedCacheSet) = CacheSet.evictLRU oldCacheSet
 
     !newCache = Cache oldCacheParams newCacheSets oldBusyCycles oldMaybeIsCacheHit oldCacheStatistics where
-        newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]]
+        !newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]]
 
 -- |Evicts a memory address from the specified cache.
 --  Returns the evicted block state and the renewed cache.
@@ -152,9 +152,9 @@ busEvict memoryAddress (Cache oldCacheParams oldCacheSets oldBusyCycles oldMaybe
         newCacheSets = oldCacheSets//[(i, newCacheSet) | i <- [setIndex]]
 
 elapse :: Cache -> Cache
-elapse (Cache oldCacheParams oldCacheSets oldBusyCycles oldMaybeIsCacheHit oldCacheStatistics) = newCache where
+elapse (Cache !oldCacheParams !oldCacheSets !oldBusyCycles !oldMaybeIsCacheHit !oldCacheStatistics) = newCache where
     !newCache = Cache oldCacheParams oldCacheSets newBusyCycles oldMaybeIsCacheHit oldCacheStatistics where
-        newBusyCycles = max (oldBusyCycles - 1) 0
+        !newBusyCycles = max (oldBusyCycles - 1) 0
 
 isCacheHit :: Cache -> Maybe IsCacheHit
 isCacheHit (Cache _ _ busyCycles maybeIsCacheHit _)

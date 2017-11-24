@@ -52,7 +52,7 @@ acquire (MESIBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyC
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -66,8 +66,8 @@ acquire (MESIBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusyC
             newMaybeBusTr = Just $ MESIBusRd memoryAddress
             newBusyCycles = 0
             newBusStatistics = case cachesHaveMState of
-                True    -> addBusTrafficStats blockSize oldBusStatistics
-                False   -> oldBusStatistics
+                _    -> addBusTrafficStats blockSize oldBusStatistics
+                --False   -> oldBusStatistics
                 where
                     blockSize = CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0
             cachesHaveMState = recursivelyCheckCachesForState M memoryAddress oldCaches
@@ -81,7 +81,7 @@ acquire (MESIBusRdX memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusy
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -95,9 +95,9 @@ acquire (MESIBusRdX memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusy
                 False   -> oldMemory
             newMaybeBusTr = Just $ MESIBusRdX memoryAddress
             newBusyCycles = 0
-            newBusStatistics = case cachesHaveMState of
-                True    -> addBusTrafficStats blockSize $ incrementBusIvUpdStats oldBusStatistics
-                False   -> incrementBusIvUpdStats oldBusStatistics
+            newBusStatistics = case Cache.busGetBlockState memoryAddress (oldCaches!!processorId) of
+                Just _  -> incrementBusIvUpdStats oldBusStatistics
+                Nothing -> addBusTrafficStats blockSize $ incrementBusIvUpdStats oldBusStatistics
                 where
                     blockSize = CacheParams.getBlockSize $ Cache.getCacheParams $ oldCaches!!0
             cachesHaveMState = recursivelyCheckCachesForState M memoryAddress oldCaches
@@ -111,7 +111,7 @@ acquire (MESIBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBusy
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -131,7 +131,7 @@ acquire (DragonBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBus
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -165,7 +165,7 @@ acquire (DragonBusUpd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldBu
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -190,7 +190,7 @@ acquire (IllinoisBusRd memoryAddress) (CacheBus oldCaches oldMemory Nothing oldB
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -223,7 +223,7 @@ acquire (IllinoisBusRdX memoryAddress) (CacheBus oldCaches oldMemory Nothing old
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches newMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -257,7 +257,7 @@ acquire (IllinoisBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing old
         Just _  -> False -- Not at front of queue, not acquired
         Nothing -> True -- No one queueing, acquired
 
-    newCacheBus = case maybePosInQueue of
+    !newCacheBus = case maybePosInQueue of
         Just 0  -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics remainingQueue
         Just _  -> CacheBus oldCaches oldMemory Nothing oldBusyCycles oldBusStatistics oldBusQueue
         Nothing -> CacheBus newCaches oldMemory newMaybeBusTr newBusyCycles newBusStatistics oldBusQueue
@@ -270,7 +270,7 @@ acquire (IllinoisBusUpg memoryAddress) (CacheBus oldCaches oldMemory Nothing old
             (_ :< remainingQueue) = viewl oldBusQueue
 -- Final case: bus is not free
 acquire _ (CacheBus oldCaches oldMemory (Just oldBusTr) oldBusyCycles oldBusStatistics oldBusQueue) processorId = (False, newCacheBus) where
-    newCacheBus = case elemIndexL processorId oldBusQueue of
+    !newCacheBus = case elemIndexL processorId oldBusQueue of
         Just _  -> CacheBus oldCaches oldMemory (Just oldBusTr) oldBusyCycles oldBusStatistics oldBusQueue -- Already in queue, do not enqueue
         Nothing -> CacheBus oldCaches oldMemory (Just oldBusTr) oldBusyCycles oldBusStatistics newBusQueue -- Not in queue, enqueue processorId
         where
@@ -332,10 +332,10 @@ hasModifiedCopies memoryAddress (CacheBus caches _ _ _ _ _) = hasM || hasSM wher
 -- |Elapses a single cycle from the bus memory and the bus itself.
 --  Returns the renewed cache bus.
 elapse :: CacheBus -> CacheBus
-elapse (CacheBus oldCaches oldMemory oldMaybeBusTr oldBusyCycles oldBusStatistics oldBusQueue) = newCacheBus where
+elapse (CacheBus oldCaches oldMemory oldMaybeBusTr !oldBusyCycles oldBusStatistics oldBusQueue) = newCacheBus where
     newCacheBus = CacheBus oldCaches newMemory oldMaybeBusTr newBusyCycles oldBusStatistics oldBusQueue where
-        newMemory = Memory.elapse oldMemory
-        newBusyCycles = max (oldBusyCycles - 1) 0
+        !newMemory = Memory.elapse oldMemory
+        !newBusyCycles = max (oldBusyCycles - 1) 0
 
 -- |Checks if the bus is busy.
 --  Returns True if either the bus memory or the bus itself is busy, False otherwise.
